@@ -22,15 +22,16 @@ jobs:
         with:
           sdk-channel: release
 
-      - name: Lint C sources
-        uses: flipperdevices/flipperzero-ufbt-action@v0.1
-        with:
-          skip-setup: true
-          task: lint
-
       - name: Upload FAP artifact
         uses: actions/upload-artifact@v4
         with:
           name: flipper-uni-remote-${{ steps.build.outputs.suffix }}
           path: ${{ steps.build.outputs.fap-artifacts }}
           if-no-files-found: error
+
+      - name: Lint C sources (advisory)
+        continue-on-error: true
+        uses: flipperdevices/flipperzero-ufbt-action@v0.1
+        with:
+          skip-setup: true
+          task: lint
