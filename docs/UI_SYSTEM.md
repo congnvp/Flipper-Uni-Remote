@@ -2,32 +2,50 @@
 
 ## Orientation
 
-Hold Flipper Zero **clockwise in portrait orientation**: screen above, controls below.
+Hold Flipper Zero clockwise in portrait orientation: screen above, controls below.
 
-Logical display size is 64×128 pixels. The UI renderer rotates logical pixels onto the native 128×64 LCD.
+Logical resolution is 64×128. The renderer rotates logical pixels onto the native 128×64 LCD.
 
 ## Base grid
 
-The design language uses a conceptual **3 columns × 6 rows** grid. Pixel cuts are approximately:
+Layout files use 3 columns × 6 rows. Pixel cuts are:
 
-- columns: 21 / 21 / 22 px
-- rows: 21 / 21 / 22 / 21 / 21 / 22 px
+- X: `0, 21, 42, 64`
+- Y: `0, 21, 42, 64, 85, 106, 128`
 
-Elements may span cells.
+Elements store grid rectangles, never absolute pixels.
 
-## Element rules
+## Elements
 
-- Button border: 1 pixel.
-- At least 1 pixel clearance between border and icon.
-- Active/pressed buttons invert background and glyph.
-- English labels are preferred and typically limited to three characters inside compact controls.
-- Vertical steppers use taller up/down buttons and keep the center value about 1–2 pixels from the button borders.
+- `status`: transport / short remote name / TX status.
+- `screen`: display-only state/last-action area.
+- `button`: OK = Tap, Long OK = Hold.
+- `hstep`: Left/Right actions; Up/Down exits to another focusable element.
+- `vstep`: Up/Down actions; Left/Right exits to another focusable element.
+- `dpad`: auto-captures directions and OK while focused. Long Back releases capture.
 
-## Current remote page
+## Focus
 
-- status: 3×1
-- display: 3×2
-- horizontal left/right controller: 3×1
-- bottom controls: two rows, with vertical controller and center power/OK block
+Status and Screen are not focusable.
 
-The right bottom block is intentionally reserved for future enum/state controls.
+The v0.2 focus traversal follows element order in `remote.ur`. This is deliberate and deterministic. A later spatial-navigation pass may choose the nearest element geometrically without changing the package schema.
+
+## System escape
+
+Long Back is evaluated before element or remote mappings:
+
+```text
+D-pad captured -> release D-pad capture
+Remote page    -> remote chooser
+Chooser        -> exit FAP
+```
+
+It must never be made configurable.
+
+## Visual rules
+
+- interactive borders: 1 pixel.
+- icon clearance from inner border: at least 1 pixel.
+- compact labels: English, preferably ≤3 characters.
+- focused controls invert button background/glyph where applicable.
+- display state should distinguish local/unconfirmed state from confirmed state when stateful transports are added.

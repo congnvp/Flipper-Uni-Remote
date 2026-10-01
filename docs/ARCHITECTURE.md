@@ -1,39 +1,64 @@
 # Architecture
 
-## Goals
+## Core rule
 
-The app separates **presentation**, **input semantics**, **device profiles**, and **transport**. This lets a contributor add a remote without having to understand every subsystem.
+The UI does not know IR protocol bits and transports do not know layout geometry.
 
-## Layers
+```text
+Element -> Controller -> Action name -> Transport
+State   -> UI display elements
+```
 
-### UI (`src/ui.c`)
+## Remote model
 
-- Logical resolution: 64×128 portrait.
-- Native LCD: 128×64.
-- Pixel transform: logical `(x, y)` → native `(y, 63 - x)`.
-- Custom bitmap text/icons avoid rotated browser/firmware font assumptions.
+`src/remote.h` defines portable remote concepts: transport, elements, grid rectangle, signal bindings, ordering and future Bluetooth profile identity.
 
-### Application/input (`src/main.c`)
+## Store
 
-- Owns page state and the Flipper input queue.
-- Maps physical keys to logical portrait directions.
-- Maps UI intent to a semantic `UniAction`.
-- Does not contain device-specific IR codes.
+`src/remote_store.c` scans `APP_DATA_PATH("remotes")`. Each valid directory contains `remote.ur`; the signal file referenced by that configuration remains a standard Flipper `.ir` file.
 
-### Profiles (`profiles/`)
+The store intentionally keeps a fixed upper bound in v0.x so corrupted SD data cannot cause uncontrolled allocations. The limits can be raised or replaced by a dynamic vector later without changing the file format.
 
-- One device/profile per C file.
-- Profiles map semantic actions to transport-specific codes.
-- `profiles/registry.c` is the current explicit registry.
+## Controller
 
-### Transport (`src/ir_transport.c`)
+`src/controller.c` owns hard-key policy and focus capture.
 
-- Converts a profile's IR code into an `InfraredMessage`.
-- Sends through the public infrared signal library.
-- Repeat is explicitly passed so protocols can encode repeat semantics.
+Priority:
 
-Bluetooth HID will be added as a separate transport implementation rather than mixed into IR code.
+```text
+SYSTEM RESERVED
+    -> FOCUS CAPTURE
+    -> ELEMENT BINDING
+    -> future REMOTE KEYMAP
+    -> future GLOBAL DEFAULT
+```
 
-## Planned evolution
+Long Back is evaluated first and is never exposed as a configurable binding.
 
-The C profile registry is intentionally simple for v0.x. The target architecture is a versioned on-SD profile format with optional compiled profiles. The engine API should remain semantic: UI emits actions/state changes; a transport/profile encoder decides how to represent them on the wire.
+## IR transport
+
+`src/ir_transport.c` opens the remote's `.ir` file, finds a signal by `name`, and transmits it through the firmware infrared signal API. Parsed signals can receive protocol repeat semantics; raw signals are retransmitted as captured.
+
+## UI
+
+The logical canvas is 64×128 portrait and maps to the physical 128×64 LCD using:
+
+```text
+logical (x, y) -> native (y, 63 - x)
+```
+
+The file format stores grid rectangles, not pixel positions. Renderer changes therefore do not require rewriting user remote packages.
+
+## Stateful IR
+
+`STATE_IR` is a declared transport type but not executed in v0.2. Stateful appliances such as many air conditioners will use a state encoder/decoder driver, not a fake collection of independent button frames.
+
+The future state file should distinguish at least:
+
+- `LOCAL`: state last sent/remembered by the FAP.
+- `CONFIRMED`: state verified through a feedback channel.
+- `UNKNOWN`: state cannot be trusted.
+
+## Bluetooth
+
+`BluetoothProfile` is already part of the remote package, but pairing keys are not. The BLE transport must keep identity/bond storage in app-private storage and test whether firmware-exported APIs permit per-remote identity switching before claiming strict isolation between two identical nearby hosts.

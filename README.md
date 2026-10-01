@@ -1,112 +1,108 @@
 # Flipper Uni Remote
 
-A modular universal-remote FAP for Flipper Zero. The project is designed so both human contributors and coding agents can add remote profiles, UI elements, transports, and tests without rewriting the whole app.
+A data-driven universal-remote FAP for Flipper Zero, designed so humans and coding agents can extend remotes without recompiling protocol data into the application.
 
-Current baseline: **v0.1.0**.
+Current development baseline: **v0.2.0**.
 
-## What works now
+## v0.2 architecture
 
-- Builds as a standalone `.fap` with official **uFBT**.
-- Portrait UI: hold Flipper Zero clockwise, with the screen above the controls.
-- 64×128 logical pixel canvas mapped to the native 128×64 LCD.
-- Built-in 6×3 UI system with 1-pixel borders and compact bitmap text/icons.
-- IR transport using the public Flipper infrared library.
-- PRESS/REPEAT behavior for directional commands.
-- Short OK = Power; long OK = Mute.
-- One explicit **NEC Demo** profile for validating the engine and IR path.
-- CI builds on the official release SDK.
+The core flow is:
 
-> The bundled NEC profile is a reference profile, not a universal TV code set. Add a profile for the target device before relying on it as a daily remote.
+```text
+Element -> semantic interaction -> signal/state action -> transport
+State   -> display elements
+```
+
+Global settings live at `/ext/apps_data/flipper_uni_remote/settings.ur`.
+
+A remote is a portable package on the SD card:
+
+```text
+/ext/apps_data/flipper_uni_remote/remotes/<remote-id>/
+├── remote.ur      # layout, element bindings, per-remote settings
+├── signals.ir     # standard Flipper IR signals, parsed or raw
+└── state.urs      # reserved for local/stateful-device state
+```
+
+Bluetooth bond keys are deliberately kept outside portable remote packages. `BluetoothProfile` is a stable slot/reference that will be used by the BLE transport layer.
+
+## What works in v0.2
+
+- Official uFBT external-FAP build.
+- Portrait 64×128 logical UI mapped onto the physical 128×64 LCD.
+- Multiple remotes loaded by scanning Apps Data on the SD card.
+- Layout loaded from `remote.ur` using a 3×6 logical grid.
+- Standard `.ir` file is read by signal name at runtime. Parsed and raw signals stay in Flipper's native format.
+- `button`, `hstep`, `vstep`, `dpad`, `status`, and `screen` element types.
+- H-step captures Left/Right; Up/Down leaves the element.
+- V-step captures Up/Down; Left/Right leaves the element.
+- D-pad auto-captures directions and OK; **Long Back** releases it.
+- **Long Back is system-reserved and cannot be remapped.** Outside D-pad capture, Long Back leaves the remote; on the remote chooser it exits the FAP.
+- Global `settings.ur` with `RepeatEnabled` and `DefaultRemote`.
+- Per-remote `Order`, `RepeatEnabled`, `Transport`, and `BluetoothProfile` fields.
+- A demo remote package is created automatically on first run if no valid remote exists.
+
+Not yet implemented: on-device layout editor, IR learning/assignment UI, stateful AC decoders/encoders, BLE HID transport, Bluetooth identity switching, and settings menus. The v0.2 schema is designed so these features do not require rewriting the renderer or IR files.
 
 ## Build
 
-Install uFBT:
-
 ```bash
 python3 -m pip install --upgrade ufbt
-```
-
-From the repository root:
-
-```bash
 ufbt update --channel release
 ufbt
 ```
 
-The resulting FAP is placed in `dist/`.
-
-With a Flipper connected by USB:
+With a Flipper connected:
 
 ```bash
 ufbt launch
 ```
 
-Useful shortcuts:
+## Editing a remote without recompiling
 
-```bash
-make build
-make lint
-make launch
-```
+1. Run the app once so Apps Data is created.
+2. Copy or edit a remote directory under `/ext/apps_data/flipper_uni_remote/remotes/`.
+3. Put any standard Flipper `.ir` file in the remote directory.
+4. In `remote.ur`, map element bindings to the `name:` fields in that `.ir` file.
+5. Restart the FAP to reload packages.
 
-Official uFBT documentation: https://github.com/flipperdevices/flipperzero-ufbt
-
-## Install on Flipper Zero
-
-Copy the generated `.fap` to an application directory on the SD card, for example:
-
-```text
-/apps/Infrared/flipper_uni_remote.fap
-```
-
-Then launch it from **Apps → Infrared**.
+See `docs/REMOTE_PACKAGE.md` and `examples/living_tv/`.
 
 ## Repository layout
 
 ```text
 .
-├── application.fam       # Flipper app manifest
-├── VERSION               # SemVer source of truth
-├── src/                  # engine, UI and transport code
-├── profiles/             # remote profiles + registry
-├── docs/                 # architecture and contribution docs
-├── tools/                # validation/helper scripts
-└── .github/workflows/    # CI build and tagged release
+├── application.fam
+├── VERSION
+├── src/
+│   ├── controller.*      # hard-key policy and focus capture
+│   ├── ir_transport.*    # signal-name -> .ir -> transmitter
+│   ├── remote.*          # data model
+│   ├── remote_store.*    # Apps Data scanner/parser
+│   ├── settings.*        # global settings
+│   ├── ui.*              # 3×6 data-driven renderer
+│   └── main.c            # orchestration only
+├── examples/
+├── docs/
+├── tools/
+└── .github/workflows/
 ```
-
-## Add a remote
-
-Start with `docs/ADDING_REMOTE.md`. In the current C-profile format, most additions require:
-
-1. Add `profiles/<device>.c`.
-2. Register it in `profiles/registry.c`.
-3. Run `python3 tools/check_version.py` and `ufbt`.
-4. Test on the actual device and document the source of the IR codes.
-
-A future milestone will add SD-card profile loading so most device additions can be data-only.
 
 ## Versioning
 
-This repository follows **Semantic Versioning**:
+Semantic Versioning is used: `vMAJOR.MINOR.PATCH`.
 
-```text
-vMAJOR.MINOR.PATCH
-```
+- `VERSION` is the source of truth.
+- Git release tags use `v`, for example `v0.2.0`.
+- `application.fam` mirrors `MAJOR.MINOR` in `fap_version`.
 
-- `VERSION` stores the full version, e.g. `0.1.0`.
-- Git tags use a `v` prefix, e.g. `v0.1.0`.
-- `application.fam` stores the corresponding `MAJOR.MINOR`, because the Flipper app manifest/catalog version field currently uses that form.
-- Tagged releases are built automatically by GitHub Actions.
+## Safety/invariants
 
-See `CONTRIBUTING.md` and `AGENTS.md` for collaboration rules.
-
-## Roadmap
-
-- Dynamic `.ir` / profile loading from SD card.
-- Stateful AC profiles and full-frame encoders.
-- BLE HID transport.
-- Editable element layouts and macros.
-- More built-in profiles only where licensing/provenance is clear.
+- Long Back is always reserved as a system escape.
+- Device-specific signal bytes do not belong in UI/engine C code.
+- UI stores signal names, never decoded protocol payloads.
+- Bluetooth keys/secrets must never be placed in portable remote packages.
+- IR-only local state must not be presented as confirmed device state.
 
 ## License
 

@@ -1,12 +1,17 @@
+#include "controller.h"
 #include "ir_transport.h"
-#include "profile.h"
+#include "remote_store.h"
+#include "settings.h"
 #include "ui.h"
 
 #include <furi.h>
 #include <gui/gui.h>
 #include <input/input.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <storage/storage.h>
+#include <string.h>
 
 #define UNI_INPUT_QUEUE_SIZE 8
 
@@ -14,47 +19,20 @@ typedef struct {
     FuriMessageQueue* input_queue;
     ViewPort* view_port;
     Gui* gui;
+    Storage* storage;
     UniIrTransport* ir;
+    UniRemoteStore store;
+    UniSettings settings;
+    UniController controller;
     UniUiState ui;
     bool running;
+    bool repeat_enabled;
 } UniApp;
-
-typedef enum {
-    UniKeyUp,
-    UniKeyDown,
-    UniKeyLeft,
-    UniKeyRight,
-    UniKeyOk,
-    UniKeyBack,
-    UniKeyUnknown,
-} UniKey;
-
-/*
- * Device is held clockwise in portrait orientation:
- * physical LEFT becomes logical UP, RIGHT -> DOWN,
- * DOWN -> LEFT, UP -> RIGHT.
- */
-static UniKey uni_map_key(InputKey key) {
-    switch(key) {
-    case InputKeyLeft:
-        return UniKeyUp;
-    case InputKeyRight:
-        return UniKeyDown;
-    case InputKeyDown:
-        return UniKeyLeft;
-    case InputKeyUp:
-        return UniKeyRight;
-    case InputKeyOk:
-        return UniKeyOk;
-    case InputKeyBack:
-        return UniKeyBack;
-    default:
-        return UniKeyUnknown;
-    }
-}
 
 static void uni_draw_callback(Canvas* canvas, void* context) {
     UniApp* app = context;
+    app->ui.focus_index = app->controller.focus_index;
+    app->ui.dpad_captured = app->controller.dpad_captured;
     uni_ui_draw(canvas, &app->ui);
 }
 
@@ -63,79 +41,70 @@ static void uni_input_callback(InputEvent* event, void* context) {
     furi_message_queue_put(queue, event, 0);
 }
 
-static bool uni_send_action(UniApp* app, UniAction action, bool repeat) {
-    const UniRemoteProfile* profile = app->ui.profile;
-    if(!profile || action >= UniActionCount || !profile->has_action[action]) return false;
-    if(profile->transport != UniTransportInfrared) return false;
-
-    app->ui.last_action = action;
-    app->ui.last_action_valid = true;
-    app->ui.tx_flash = true;
-    bool sent = uni_ir_transport_send(app->ir, &profile->ir[action], repeat);
-    app->ui.tx_flash = false;
-    return sent;
+static void open_remote(UniApp* app) {
+    app->ui.remote = uni_remote_store_get(&app->store, app->ui.selected_remote);
+    if(!app->ui.remote) return;
+    app->ui.page = UniUiRemote;
+    app->ui.last_signal[0] = '\0';
+    app->ui.tx_ok = true;
+    uni_controller_reset(&app->controller, app->ui.remote);
 }
 
-static void uni_handle_home(UniApp* app, const InputEvent* event, UniKey key) {
-    if(event->type != InputTypeShort) return;
+static void handle_home(UniApp* app, const InputEvent* event, UniKey key) {
+    const size_t count = uni_remote_store_count(&app->store);
 
-    size_t count = uni_profiles_count();
-    if(count == 0) return;
+    if(key == UniKeyBack && event->type == InputTypeLong) {
+        app->running = false;
+        return;
+    }
+    if(event->type != InputTypeShort || count == 0) return;
 
     if(key == UniKeyUp) {
-        app->ui.selected_profile =
-            app->ui.selected_profile == 0 ? count - 1 : app->ui.selected_profile - 1;
+        app->ui.selected_remote =
+            app->ui.selected_remote == 0 ? count - 1 : app->ui.selected_remote - 1;
     } else if(key == UniKeyDown) {
-        app->ui.selected_profile = (app->ui.selected_profile + 1) % count;
+        app->ui.selected_remote = (app->ui.selected_remote + 1) % count;
     } else if(key == UniKeyOk) {
-        app->ui.profile = uni_profiles_get(app->ui.selected_profile);
-        app->ui.page = UniUiRemote;
-        app->ui.last_action_valid = false;
-    } else if(key == UniKeyBack) {
-        app->running = false;
+        open_remote(app);
     }
 }
 
-static UniAction uni_direction_action(UniKey key) {
-    switch(key) {
-    case UniKeyUp:
-        return UniActionUp;
-    case UniKeyDown:
-        return UniActionDown;
-    case UniKeyLeft:
-        return UniActionLeft;
-    case UniKeyRight:
-        return UniActionRight;
-    default:
-        return UniActionCount;
+static void dispatch_remote_action(UniApp* app) {
+    if(!app->controller.action_ready || !app->ui.remote) return;
+
+    snprintf(app->ui.last_signal, sizeof(app->ui.last_signal), "%s", app->controller.signal);
+    app->ui.tx_flash = true;
+
+    if(app->ui.remote->transport == UniTransportInfrared) {
+        app->ui.tx_ok = uni_ir_transport_send(
+            app->ir,
+            app->ui.remote->signal_path,
+            app->controller.signal,
+            app->controller.repeat);
+    } else {
+        app->ui.tx_ok = false;
     }
+
+    app->ui.tx_flash = false;
+    app->controller.action_ready = false;
 }
 
-static void uni_handle_remote(UniApp* app, const InputEvent* event, UniKey key) {
-    if(key == UniKeyBack && event->type == InputTypeShort) {
+static void handle_remote(UniApp* app, const InputEvent* event, UniKey key) {
+    uni_controller_handle(
+        &app->controller,
+        app->ui.remote,
+        key,
+        event->type,
+        app->repeat_enabled);
+
+    if(app->controller.request_home) {
         app->ui.page = UniUiHome;
-        app->ui.profile = NULL;
-        app->ui.last_action_valid = false;
+        app->ui.remote = NULL;
+        app->ui.last_signal[0] = '\0';
         return;
     }
 
-    if(key == UniKeyOk) {
-        if(event->type == InputTypeShort) {
-            uni_send_action(app, UniActionPower, false);
-        } else if(event->type == InputTypeLong) {
-            uni_send_action(app, UniActionMute, false);
-        }
-        return;
-    }
-
-    UniAction action = uni_direction_action(key);
-    if(action == UniActionCount) return;
-
-    if(event->type == InputTypePress) {
-        uni_send_action(app, action, false);
-    } else if(event->type == InputTypeRepeat) {
-        uni_send_action(app, action, true);
-    }
+    dispatch_remote_action(app);
 }
 
 int32_t uni_remote_app(void* p) {
@@ -146,15 +115,24 @@ int32_t uni_remote_app(void* p) {
 
     app->input_queue = furi_message_queue_alloc(UNI_INPUT_QUEUE_SIZE, sizeof(InputEvent));
     app->view_port = view_port_alloc();
-    app->ir = uni_ir_transport_alloc();
+    app->storage = furi_record_open(RECORD_STORAGE);
     app->gui = furi_record_open(RECORD_GUI);
-    app->running = app->input_queue && app->view_port && app->ir && app->gui;
+    app->repeat_enabled = true;
+
+    const bool settings_ok =
+        app->storage && uni_settings_load_or_create(app->storage, &app->settings);
+    const bool store_ok = app->storage && uni_remote_store_init(&app->store, app->storage);
+    app->ir = app->storage ? uni_ir_transport_alloc(app->storage) : NULL;
+    if(settings_ok) app->repeat_enabled = app->settings.repeat_enabled;
+    app->running = app->input_queue && app->view_port && app->gui && app->storage && app->ir &&
+                   store_ok && settings_ok;
 
     app->ui.page = UniUiHome;
-    app->ui.selected_profile = 0;
-    app->ui.profile = NULL;
-    app->ui.last_action_valid = false;
-    app->ui.tx_flash = false;
+    app->ui.store = &app->store;
+    app->ui.selected_remote =
+        settings_ok ? uni_remote_store_find_id(&app->store, app->settings.default_remote) : 0;
+    app->ui.remote = NULL;
+    app->ui.tx_ok = true;
 
     if(app->running) {
         view_port_draw_callback_set(app->view_port, uni_draw_callback, app);
@@ -163,13 +141,11 @@ int32_t uni_remote_app(void* p) {
 
         InputEvent event;
         while(app->running) {
-            if(furi_message_queue_get(app->input_queue, &event, FuriWaitForever) == FuriStatusOk) {
-                UniKey key = uni_map_key(event.key);
-                if(app->ui.page == UniUiHome) {
-                    uni_handle_home(app, &event, key);
-                } else {
-                    uni_handle_remote(app, &event, key);
-                }
+            if(furi_message_queue_get(app->input_queue, &event, FuriWaitForever) ==
+               FuriStatusOk) {
+                const UniKey key = uni_map_physical_key(event.key);
+                if(app->ui.page == UniUiHome) handle_home(app, &event, key);
+                else handle_remote(app, &event, key);
                 view_port_update(app->view_port);
             }
         }
@@ -179,6 +155,7 @@ int32_t uni_remote_app(void* p) {
 
     if(app->gui) furi_record_close(RECORD_GUI);
     if(app->ir) uni_ir_transport_free(app->ir);
+    if(app->storage) furi_record_close(RECORD_STORAGE);
     if(app->view_port) view_port_free(app->view_port);
     if(app->input_queue) furi_message_queue_free(app->input_queue);
     free(app);

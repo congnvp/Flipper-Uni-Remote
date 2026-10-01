@@ -1,54 +1,67 @@
-# Adding a remote profile
+# Adding a remote
 
-## Current v0.x format
+v0.2 remotes are data packages, not C profiles.
 
-Profiles are compiled C data. This keeps the first releases deterministic while the dynamic SD format is designed.
+## Fast path
 
-### 1. Create a profile file
+Create an example/package scaffold:
 
-Copy `profiles/demo_nec.c` to a descriptive name, e.g.:
+```bash
+python3 tools/new_profile.py living_tv "Living TV" TV
+```
+
+This creates:
 
 ```text
-profiles/samsung_tv_example.c
+examples/living_tv/
+├── remote.ur
+└── signals.ir
 ```
 
-Expose one symbol:
+Copy that directory to:
 
-```c
-const UniRemoteProfile uni_profile_samsung_tv_example = {
-    .id = "samsung_tv_example",
-    .name = "Samsung TV Example",
-    .short_name = "SAM",
-    .transport = UniTransportInfrared,
-    ...
-};
+```text
+/ext/apps_data/flipper_uni_remote/remotes/living_tv/
 ```
 
-`short_name` should be three characters where practical because the portrait status bar is compact.
+or use it as a template for a user-facing package.
 
-### 2. Map semantic actions
+## Using IR captured by Flipper
 
-The baseline engine knows:
+The FAP deliberately uses the standard Flipper `.ir` format. A file learned in the official Infrared app can therefore be copied into the remote package without converting address/command/raw timings to source code.
 
-- `UniActionPower`
-- `UniActionMute`
-- `UniActionUp`
-- `UniActionDown`
-- `UniActionLeft`
-- `UniActionRight`
-- `UniActionOk`
+Set:
 
-For parsed IR protocols provide protocol, address and command. Mark only supported actions as `true` in `has_action`.
+```text
+SignalFile: my_remote.ir
+```
 
-### 3. Register it
+and bind element actions to the exact `name:` entries inside that file.
 
-Add an `extern` and pointer entry in `profiles/registry.c`.
+Example:
 
-### 4. Document provenance
+```text
+Element3Type: vstep
+Element3Id: volume
+Element3Rect: 0 4 1 2
+Element3Label: VOL
+Element3Up: Vol_up
+Element3Down: Vol_dn
+```
 
-Add a comment in the profile file describing the remote/model and where the codes came from. Record whether each command was verified on hardware.
+## Layout
 
-### 5. Validate
+Use `Rect: X Y W H` on the 3×6 logical grid. Do not store pixel positions.
+
+## Bluetooth
+
+You may assign a stable `BluetoothProfile` today. BLE HID and per-profile identity switching are not yet implemented, so a BT package is metadata-only in v0.2.
+
+## Stateful appliances
+
+Do not model a full-state air-conditioner protocol as fake independent button commands if the real remote sends an entire state frame. Use `Transport: STATE_IR` only as a placeholder until a matching state encoder/decoder driver exists.
+
+## Validation
 
 ```bash
 python3 tools/check_version.py
@@ -56,8 +69,4 @@ ufbt
 ufbt lint
 ```
 
-## Repeat behavior
-
-Directional keys send an initial parsed IR message on `InputTypePress` and repeat messages on `InputTypeRepeat`. OK uses short press for Power and long press for Mute in the baseline UI.
-
-Profiles for protocols or appliances requiring full-state frames (many air conditioners) should not be forced into this simple key-code model. They will use a state encoder interface in a later milestone.
+For IR changes, test actual hardware and document code provenance.

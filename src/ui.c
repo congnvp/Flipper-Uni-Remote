@@ -1,13 +1,11 @@
 #include "ui.h"
 
 #include <gui/canvas.h>
+#include <stdio.h>
 #include <string.h>
 
-/*
- * Logical canvas is 64x128 and is rotated into the Flipper's native 128x64 LCD.
- * Hold the device clockwise: LCD at the top, controls at the bottom.
- * logical (x,y) -> native (y, 63-x)
- */
+static const uint8_t grid_x[] = {0, 21, 42, 64};
+static const uint8_t grid_y[] = {0, 21, 42, 64, 85, 106, 128};
 
 static void pset(Canvas* canvas, int16_t x, int16_t y, Color color) {
     if(x < 0 || x >= 64 || y < 0 || y >= 128) return;
@@ -28,11 +26,13 @@ static void fill_rect(Canvas* canvas, int16_t x, int16_t y, int16_t w, int16_t h
 }
 
 static void frame(Canvas* canvas, int16_t x, int16_t y, int16_t w, int16_t h, bool active) {
+    if(w < 3 || h < 3) return;
     if(active) fill_rect(canvas, x, y, w, h, ColorBlack);
-    hline(canvas, x + 1, y, w - 2, ColorBlack);
-    hline(canvas, x + 1, y + h - 1, w - 2, ColorBlack);
-    vline(canvas, x, y + 1, h - 2, ColorBlack);
-    vline(canvas, x + w - 1, y + 1, h - 2, ColorBlack);
+    const Color color = ColorBlack;
+    hline(canvas, x + 1, y, w - 2, color);
+    hline(canvas, x + 1, y + h - 1, w - 2, color);
+    vline(canvas, x, y + 1, h - 2, color);
+    vline(canvas, x + w - 1, y + 1, h - 2, color);
 }
 
 static const uint8_t font3x5[][5] = {
@@ -94,7 +94,7 @@ static void text3(Canvas* canvas, const char* text, int16_t x, int16_t y, Color 
 }
 
 static int16_t text_width3(const char* text) {
-    size_t len = strlen(text);
+    const size_t len = strlen(text);
     return len ? (int16_t)(len * 4 - 1) : 0;
 }
 
@@ -102,113 +102,246 @@ static void text_center3(Canvas* canvas, const char* text, int16_t cx, int16_t y
     text3(canvas, text, cx - text_width3(text) / 2, y, color);
 }
 
-static void triangle(Canvas* canvas, int16_t cx, int16_t cy, UniAction direction, Color color) {
-    if(direction == UniActionUp || direction == UniActionDown) {
-        for(int16_t r = 0; r < 5; r++) {
-            int16_t n = direction == UniActionUp ? r : 4 - r;
-            int16_t span = 1 + 2 * n;
-            hline(canvas, cx - span / 2, cy - 2 + r, span, color);
+static void triangle(Canvas* canvas, int16_t cx, int16_t cy, UniKey direction, Color color) {
+    if(direction == UniKeyUp || direction == UniKeyDown) {
+        for(int16_t row = 0; row < 5; row++) {
+            const int16_t n = direction == UniKeyUp ? row : 4 - row;
+            const int16_t span = 1 + 2 * n;
+            hline(canvas, cx - span / 2, cy - 2 + row, span, color);
         }
     } else {
-        for(int16_t c = 0; c < 5; c++) {
-            int16_t n = direction == UniActionLeft ? c : 4 - c;
-            int16_t span = 1 + 2 * n;
-            vline(canvas, cx - 2 + c, cy - span / 2, span, color);
+        for(int16_t col = 0; col < 5; col++) {
+            const int16_t n = direction == UniKeyLeft ? col : 4 - col;
+            const int16_t span = 1 + 2 * n;
+            vline(canvas, cx - 2 + col, cy - span / 2, span, color);
         }
     }
 }
 
-static const char* action_label(UniAction action) {
-    switch(action) {
-    case UniActionPower:
-        return "PWR";
-    case UniActionMute:
-        return "MUT";
-    case UniActionUp:
-        return "UP";
-    case UniActionDown:
-        return "DWN";
-    case UniActionLeft:
-        return "LFT";
-    case UniActionRight:
-        return "RGT";
-    case UniActionOk:
-        return "OK";
-    default:
-        return "---";
+static void circle(Canvas* canvas, int16_t cx, int16_t cy, int16_t radius, Color color) {
+    for(int16_t x = -radius; x <= radius; x++) {
+        for(int16_t y = -radius; y <= radius; y++) {
+            const int16_t d = x * x + y * y;
+            if(d >= radius * radius - radius && d <= radius * radius + radius) {
+                pset(canvas, cx + x, cy + y, color);
+            }
+        }
     }
 }
 
-static void draw_status(Canvas* canvas, const UniUiState* state) {
-    frame(canvas, 1, 1, 62, 19, false);
-    text3(canvas, state->profile ? "IR" : "UNI", 4, 8, ColorBlack);
-    if(state->profile) text_center3(canvas, state->profile->short_name, 32, 8, ColorBlack);
-    text3(canvas, state->tx_flash ? "TX" : "--", 52, 8, ColorBlack);
+static void grid_rect(
+    const UniElement* element,
+    int16_t* x,
+    int16_t* y,
+    int16_t* w,
+    int16_t* h) {
+    *x = grid_x[element->x];
+    *y = grid_y[element->y];
+    *w = grid_x[element->x + element->w] - *x;
+    *h = grid_y[element->y + element->h] - *y;
+}
+
+static void draw_status(Canvas* canvas, const UniUiState* state, const UniElement* element) {
+    int16_t x, y, w, h;
+    grid_rect(element, &x, &y, &w, &h);
+    frame(canvas, x + 1, y + 1, w - 2, h - 2, false);
+    text3(canvas, uni_transport_label(state->remote->transport), x + 4, y + 8, ColorBlack);
+    text_center3(canvas, state->remote->short_name, x + w / 2, y + 8, ColorBlack);
+    text3(
+        canvas,
+        state->tx_flash ? "TX" : (state->tx_ok ? "--" : "ER"),
+        x + w - 12,
+        y + 8,
+        ColorBlack);
+}
+
+static void draw_screen(Canvas* canvas, const UniUiState* state, const UniElement* element) {
+    int16_t x, y, w, h;
+    grid_rect(element, &x, &y, &w, &h);
+    frame(canvas, x + 1, y + 1, w - 2, h - 2, false);
+
+    char title[13] = {0};
+    snprintf(title, sizeof(title), "%.12s", state->remote->name);
+    text_center3(canvas, title, x + w / 2, y + 6, ColorBlack);
+
+    const char* middle = state->last_signal[0] ? state->last_signal : element->label;
+    if(!middle[0]) middle = "READY";
+    char signal[13] = {0};
+    snprintf(signal, sizeof(signal), "%.12s", middle);
+    text_center3(canvas, signal, x + w / 2, y + h / 2 - 2, ColorBlack);
+
+    if(state->remote->transport == UniTransportBluetoothHid) {
+        char profile[13] = {0};
+        snprintf(profile, sizeof(profile), "%.12s", state->remote->bluetooth_profile);
+        text_center3(canvas, profile, x + w / 2, y + h - 9, ColorBlack);
+    } else if(state->remote->transport == UniTransportStatefulIr) {
+        text_center3(canvas, "LOCAL STATE", x + w / 2, y + h - 9, ColorBlack);
+    } else {
+        text_center3(
+            canvas,
+            state->tx_ok ? "READY" : "NO SIGNAL",
+            x + w / 2,
+            y + h - 9,
+            ColorBlack);
+    }
+}
+
+static void draw_button(
+    Canvas* canvas,
+    const UniElement* element,
+    int16_t x,
+    int16_t y,
+    int16_t w,
+    int16_t h,
+    bool focused) {
+    frame(canvas, x + 1, y + 1, w - 2, h - 2, focused);
+    const Color color = focused ? ColorWhite : ColorBlack;
+    text_center3(canvas, element->label, x + w / 2, y + h / 2 - 2, color);
+}
+
+static void draw_hstep(
+    Canvas* canvas,
+    const UniElement* element,
+    int16_t x,
+    int16_t y,
+    int16_t w,
+    int16_t h,
+    bool focused) {
+    const int16_t side = (w - 4) / 3;
+    const int16_t left_w = side;
+    const int16_t right_x = x + w - side;
+    frame(canvas, x + 1, y + 1, left_w, h - 2, focused);
+    frame(canvas, right_x - 1, y + 1, side, h - 2, focused);
+    const Color color = focused ? ColorWhite : ColorBlack;
+    triangle(canvas, x + left_w / 2 + 1, y + h / 2, UniKeyLeft, color);
+    triangle(canvas, right_x + side / 2 - 1, y + h / 2, UniKeyRight, color);
+    text_center3(canvas, element->label, x + w / 2, y + h / 2 - 2, ColorBlack);
+}
+
+static void draw_vstep(
+    Canvas* canvas,
+    const UniElement* element,
+    int16_t x,
+    int16_t y,
+    int16_t w,
+    int16_t h,
+    bool focused) {
+    int16_t button_h = 15;
+    if(h < 39) button_h = (h - 9) / 2;
+    const int16_t bottom_y = y + h - button_h - 1;
+    frame(canvas, x + 1, y + 1, w - 2, button_h, focused);
+    frame(canvas, x + 1, bottom_y, w - 2, button_h, focused);
+    const Color color = focused ? ColorWhite : ColorBlack;
+    triangle(canvas, x + w / 2, y + 1 + button_h / 2, UniKeyUp, color);
+    triangle(canvas, x + w / 2, bottom_y + button_h / 2, UniKeyDown, color);
+    text_center3(canvas, element->label, x + w / 2, y + h / 2 - 2, ColorBlack);
+}
+
+static void draw_dpad(
+    Canvas* canvas,
+    const UniElement* element,
+    int16_t x,
+    int16_t y,
+    int16_t w,
+    int16_t h,
+    bool focused,
+    bool captured) {
+    const int16_t cw = w / 3;
+    const int16_t ch = h / 3;
+    const int16_t cx = x + cw;
+    const int16_t cy = y + ch;
+    const bool active = focused && captured;
+    const Color color = active ? ColorWhite : ColorBlack;
+
+    frame(canvas, cx + 1, y + 1, cw - 2, ch - 2, active);
+    frame(canvas, x + 1, cy + 1, cw - 2, ch - 2, active);
+    frame(canvas, cx + 1, cy + 1, cw - 2, ch - 2, active);
+    frame(canvas, x + 2 * cw + 1, cy + 1, w - 2 * cw - 2, ch - 2, active);
+    frame(canvas, cx + 1, y + 2 * ch + 1, cw - 2, h - 2 * ch - 2, active);
+
+    triangle(canvas, cx + cw / 2, y + ch / 2, UniKeyUp, color);
+    triangle(canvas, x + cw / 2, cy + ch / 2, UniKeyLeft, color);
+    triangle(
+        canvas,
+        x + 2 * cw + (w - 2 * cw) / 2,
+        cy + ch / 2,
+        UniKeyRight,
+        color);
+    triangle(
+        canvas,
+        cx + cw / 2,
+        y + 2 * ch + (h - 2 * ch) / 2,
+        UniKeyDown,
+        color);
+    circle(canvas, cx + cw / 2, cy + ch / 2, 4, color);
+
+    if(element->label[0]) {
+        text_center3(canvas, element->label, x + w / 2, y + h - 6, ColorBlack);
+    }
+}
+
+static void draw_element(Canvas* canvas, const UniUiState* state, size_t index) {
+    const UniElement* element = &state->remote->elements[index];
+    const bool focused = uni_element_focusable(element) && index == state->focus_index;
+    int16_t x, y, w, h;
+    grid_rect(element, &x, &y, &w, &h);
+
+    switch(element->type) {
+    case UniElementStatus:
+        draw_status(canvas, state, element);
+        break;
+    case UniElementScreen:
+        draw_screen(canvas, state, element);
+        break;
+    case UniElementButton:
+        draw_button(canvas, element, x, y, w, h, focused);
+        break;
+    case UniElementHStep:
+        draw_hstep(canvas, element, x, y, w, h, focused);
+        break;
+    case UniElementVStep:
+        draw_vstep(canvas, element, x, y, w, h, focused);
+        break;
+    case UniElementDpad:
+        draw_dpad(canvas, element, x, y, w, h, focused, state->dpad_captured);
+        break;
+    }
 }
 
 static void draw_home(Canvas* canvas, const UniUiState* state) {
-    draw_status(canvas, state);
-    text_center3(canvas, "REMOTE", 32, 27, ColorBlack);
+    frame(canvas, 1, 1, 62, 19, false);
+    text3(canvas, "UNI", 4, 8, ColorBlack);
+    text_center3(canvas, "REMOTE", 32, 8, ColorBlack);
 
-    const size_t count = uni_profiles_count();
-    for(size_t i = 0; i < count && i < 4; i++) {
-        int16_t y = 41 + (int16_t)i * 18;
-        bool active = i == state->selected_profile;
+    const size_t count = uni_remote_store_count(state->store);
+    const size_t start = state->selected_remote > 3 ? state->selected_remote - 3 : 0;
+    for(size_t row = 0; row < 5 && start + row < count; row++) {
+        const size_t index = start + row;
+        const UniRemote* remote = uni_remote_store_get(state->store, index);
+        const int16_t y = 24 + (int16_t)row * 18;
+        const bool active = index == state->selected_remote;
         frame(canvas, 3, y, 58, 15, active);
-        const UniRemoteProfile* profile = uni_profiles_get(i);
-        text_center3(canvas, profile->short_name, 32, y + 5, active ? ColorWhite : ColorBlack);
+        const Color color = active ? ColorWhite : ColorBlack;
+        text3(canvas, remote->short_name, 7, y + 5, color);
+        char name[10] = {0};
+        snprintf(name, sizeof(name), "%.9s", remote->name);
+        text3(canvas, name, 21, y + 5, color);
+        text3(canvas, uni_transport_label(remote->transport), 51, y + 5, color);
     }
 
-    text_center3(canvas, "OK OPEN", 32, 116, ColorBlack);
+    text_center3(canvas, "HOLD BACK EXIT", 32, 116, ColorBlack);
 }
 
 static void draw_remote(Canvas* canvas, const UniUiState* state) {
-    draw_status(canvas, state);
-
-    frame(canvas, 1, 22, 62, 41, false);
-    text_center3(canvas, "NEC DEMO", 32, 28, ColorBlack);
-    text_center3(
-        canvas,
-        state->last_action_valid ? action_label(state->last_action) : "READY",
-        32,
-        43,
-        ColorBlack);
-    text_center3(canvas, "HOLD OK MUT", 32, 54, ColorBlack);
-
-    frame(canvas, 1, 65, 19, 19, false);
-    triangle(canvas, 10, 74, UniActionLeft, ColorBlack);
-    text_center3(canvas, "CH", 32, 71, ColorBlack);
-    frame(canvas, 43, 65, 20, 19, false);
-    triangle(canvas, 53, 74, UniActionRight, ColorBlack);
-
-    frame(canvas, 1, 86, 19, 15, false);
-    triangle(canvas, 10, 93, UniActionUp, ColorBlack);
-    text_center3(canvas, "VOL", 10, 103, ColorBlack);
-    frame(canvas, 1, 112, 19, 15, false);
-    triangle(canvas, 10, 119, UniActionDown, ColorBlack);
-
-    frame(canvas, 22, 86, 19, 41, false);
-    text_center3(canvas, "PWR", 31, 100, ColorBlack);
-    for(int16_t x = -4; x <= 4; x++) {
-        for(int16_t y = -4; y <= 4; y++) {
-            int16_t d = x * x + y * y;
-            if(d >= 12 && d <= 20) pset(canvas, 31 + x, 113 + y, ColorBlack);
-        }
-    }
-
-    frame(canvas, 43, 86, 20, 41, false);
-    text_center3(canvas, "MOD", 53, 103, ColorBlack);
+    for(size_t i = 0; i < state->remote->element_count; i++) draw_element(canvas, state, i);
 }
 
 void uni_ui_draw(Canvas* canvas, const UniUiState* state) {
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
 
-    if(state->page == UniUiHome) {
-        draw_home(canvas, state);
-    } else {
-        draw_remote(canvas, state);
-    }
+    if(state->page == UniUiHome || !state->remote) draw_home(canvas, state);
+    else draw_remote(canvas, state);
 
     canvas_set_color(canvas, ColorBlack);
 }
