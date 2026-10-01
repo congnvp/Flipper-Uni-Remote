@@ -33,169 +33,90 @@ static void ensure_default_package(Storage* storage) {
 
     if(!storage_file_exists(storage, UNI_DEFAULT_REMOTE)) {
         static const char remote_text[] =
-            "Filetype: Flipper Uni Remote
-"
-            "Version: 1
-"
-            "Id: demo_tv
-"
-            "Name: Demo TV
-"
-            "ShortName: TV
-"
-            "Transport: IR
-"
-            "Order: 10
-"
-            "RepeatEnabled: true
-"
-            "SignalFile: signals.ir
-"
-            "BluetoothProfile: tv_demo
-"
-            "ElementCount: 5
-"
-            "#
-"
-            "Element0Type: status
-"
-            "Element0Id: status
-"
-            "Element0Rect: 0 0 3 1
-"
-            "#
-"
-            "Element1Type: screen
-"
-            "Element1Id: main
-"
-            "Element1Rect: 0 1 3 2
-"
-            "Element1Label: READY
-"
-            "#
-"
-            "Element2Type: hstep
-"
-            "Element2Id: channel
-"
-            "Element2Rect: 0 3 3 1
-"
-            "Element2Label: CH
-"
-            "Element2Left: Prev
-"
-            "Element2Right: Next
-"
-            "#
-"
-            "Element3Type: vstep
-"
-            "Element3Id: volume
-"
-            "Element3Rect: 0 4 1 2
-"
-            "Element3Label: VOL
-"
-            "Element3Up: VolUp
-"
-            "Element3Down: VolDown
-"
-            "#
-"
-            "Element4Type: button
-"
-            "Element4Id: power
-"
-            "Element4Rect: 1 4 1 2
-"
-            "Element4Label: PWR
-"
-            "Element4Tap: Power
-"
-            "Element4Hold: Mute
-";
+            "Filetype: Flipper Uni Remote\n"
+            "Version: 1\n"
+            "Id: demo_tv\n"
+            "Name: Demo TV\n"
+            "ShortName: TV\n"
+            "Transport: IR\n"
+            "Order: 10\n"
+            "RepeatEnabled: true\n"
+            "SignalFile: signals.ir\n"
+            "BluetoothProfile: tv_demo\n"
+            "ElementCount: 5\n"
+            "#\n"
+            "Element0Type: status\n"
+            "Element0Id: status\n"
+            "Element0Rect: 0 0 3 1\n"
+            "#\n"
+            "Element1Type: screen\n"
+            "Element1Id: main\n"
+            "Element1Rect: 0 1 3 2\n"
+            "Element1Label: READY\n"
+            "#\n"
+            "Element2Type: hstep\n"
+            "Element2Id: channel\n"
+            "Element2Rect: 0 3 3 1\n"
+            "Element2Label: CH\n"
+            "Element2Left: Prev\n"
+            "Element2Right: Next\n"
+            "#\n"
+            "Element3Type: vstep\n"
+            "Element3Id: volume\n"
+            "Element3Rect: 0 4 1 2\n"
+            "Element3Label: VOL\n"
+            "Element3Up: VolUp\n"
+            "Element3Down: VolDown\n"
+            "#\n"
+            "Element4Type: button\n"
+            "Element4Id: power\n"
+            "Element4Rect: 1 4 1 2\n"
+            "Element4Label: PWR\n"
+            "Element4Tap: Power\n"
+            "Element4Hold: Mute\n";
         write_text_file(storage, UNI_DEFAULT_REMOTE, remote_text);
     }
 
     if(!storage_file_exists(storage, UNI_DEFAULT_SIGNALS)) {
         static const char signal_text[] =
-            "Filetype: IR signals file
-"
-            "Version: 1
-"
-            "#
-"
-            "name: Power
-"
-            "type: parsed
-"
-            "protocol: NEC
-"
-            "address: 00 00 00 00
-"
-            "command: 45 00 00 00
-"
-            "#
-"
-            "name: Mute
-"
-            "type: parsed
-"
-            "protocol: NEC
-"
-            "address: 00 00 00 00
-"
-            "command: 47 00 00 00
-"
-            "#
-"
-            "name: VolUp
-"
-            "type: parsed
-"
-            "protocol: NEC
-"
-            "address: 00 00 00 00
-"
-            "command: 18 00 00 00
-"
-            "#
-"
-            "name: VolDown
-"
-            "type: parsed
-"
-            "protocol: NEC
-"
-            "address: 00 00 00 00
-"
-            "command: 52 00 00 00
-"
-            "#
-"
-            "name: Prev
-"
-            "type: parsed
-"
-            "protocol: NEC
-"
-            "address: 00 00 00 00
-"
-            "command: 08 00 00 00
-"
-            "#
-"
-            "name: Next
-"
-            "type: parsed
-"
-            "protocol: NEC
-"
-            "address: 00 00 00 00
-"
-            "command: 5A 00 00 00
-";
+            "Filetype: IR signals file\n"
+            "Version: 1\n"
+            "#\n"
+            "name: Power\n"
+            "type: parsed\n"
+            "protocol: NEC\n"
+            "address: 00 00 00 00\n"
+            "command: 45 00 00 00\n"
+            "#\n"
+            "name: Mute\n"
+            "type: parsed\n"
+            "protocol: NEC\n"
+            "address: 00 00 00 00\n"
+            "command: 47 00 00 00\n"
+            "#\n"
+            "name: VolUp\n"
+            "type: parsed\n"
+            "protocol: NEC\n"
+            "address: 00 00 00 00\n"
+            "command: 18 00 00 00\n"
+            "#\n"
+            "name: VolDown\n"
+            "type: parsed\n"
+            "protocol: NEC\n"
+            "address: 00 00 00 00\n"
+            "command: 52 00 00 00\n"
+            "#\n"
+            "name: Prev\n"
+            "type: parsed\n"
+            "protocol: NEC\n"
+            "address: 00 00 00 00\n"
+            "command: 08 00 00 00\n"
+            "#\n"
+            "name: Next\n"
+            "type: parsed\n"
+            "protocol: NEC\n"
+            "address: 00 00 00 00\n"
+            "command: 5A 00 00 00\n";
         write_text_file(storage, UNI_DEFAULT_SIGNALS, signal_text);
     }
 }
@@ -272,7 +193,11 @@ static bool load_element(FlipperFormat* ff, uint32_t index, UniElement* element)
     char type_text[16] = {0};
     memset(element, 0, sizeof(UniElement));
 
-#define READ_ELEMENT_STRING(SUFFIX, FIELD, REQUIRED)     do {         snprintf(key, sizeof(key), "Element%lu" SUFFIX, (unsigned long)index);         if(!ff_read_string(ff, key, element->FIELD, sizeof(element->FIELD), REQUIRED)) return false;     } while(0)
+#define READ_ELEMENT_STRING(SUFFIX, FIELD, REQUIRED) \
+    do { \
+        snprintf(key, sizeof(key), "Element%lu" SUFFIX, (unsigned long)index); \
+        if(!ff_read_string(ff, key, element->FIELD, sizeof(element->FIELD), REQUIRED)) return false; \
+    } while(0)
 
     snprintf(key, sizeof(key), "Element%luType", (unsigned long)index);
     if(!ff_read_string(ff, key, type_text, sizeof(type_text), true)) return false;
@@ -322,7 +247,8 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
 
         ff_read_string(ff, "Id", remote->id, sizeof(remote->id), false);
         if(!ff_read_string(ff, "Name", remote->name, sizeof(remote->name), true)) break;
-        if(!ff_read_string(ff, "ShortName", remote->short_name, sizeof(remote->short_name), true)) break;
+        if(!ff_read_string(ff, "ShortName", remote->short_name, sizeof(remote->short_name), true))
+            break;
         if(!ff_read_string(ff, "Transport", transport_text, sizeof(transport_text), true)) break;
         if(!parse_transport(transport_text, &remote->transport)) break;
         ff_read_u32(ff, "Order", &remote->order, false);

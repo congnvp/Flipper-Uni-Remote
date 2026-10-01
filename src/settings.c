@@ -11,14 +11,10 @@
 
 static bool create_default(Storage* storage) {
     static const char text[] =
-        "Filetype: Flipper Uni Remote Settings
-"
-        "Version: 1
-"
-        "RepeatEnabled: true
-"
-        "DefaultRemote: demo_tv
-";
+        "Filetype: Flipper Uni Remote Settings\n"
+        "Version: 1\n"
+        "RepeatEnabled: true\n"
+        "DefaultRemote: demo_tv\n";
 
     File* file = storage_file_alloc(storage);
     if(!file) return false;
