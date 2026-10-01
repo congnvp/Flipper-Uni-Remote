@@ -1,0 +1,48 @@
+name: Release FAP
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify release tag matches VERSION
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="v$(cat VERSION)"
+          if [[ "$GITHUB_REF_NAME" != "$expected" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match VERSION ($expected)"
+            exit 1
+          fi
+          python3 tools/check_version.py
+
+      - name: Build release FAP
+        id: build
+        uses: flipperdevices/flipperzero-ufbt-action@v0.1
+        with:
+          sdk-channel: release
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t faps < <(find dist -type f -name '*.fap' -print)
+          if (( ${#faps[@]} == 0 )); then
+            echo "No .fap files found in dist/"
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" "${faps[@]}" \
+            --title "Flipper Uni Remote $GITHUB_REF_NAME" \
+            --generate-notes
