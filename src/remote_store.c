@@ -237,7 +237,7 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
 
     memset(remote, 0, sizeof(UniRemote));
     remote->repeat_enabled = true;
-    snprintf(remote->id, sizeof(remote->id), "%s", folder);
+    snprintf(remote->id, sizeof(remote->id), "%.23s", folder);
 
     do {
         if(!flipper_format_file_open_existing(ff, config_path)) break;
