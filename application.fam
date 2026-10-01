@@ -1,0 +1,14 @@
+App(
+    appid="flipper_uni_remote",
+    name="Uni Remote",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="uni_remote_app",
+    stack_size=4 * 1024,
+    fap_category="Infrared",
+    fap_description="Universal remote framework for IR and future BLE profiles",
+    fap_version="0.1",
+    fap_author="congnvp",
+    fap_weburl="https://github.com/congnvp/Flipper-Uni-Remote",
+    sources=["src/*.c", "profiles/*.c"],
+    fap_libs=["infrared"],
+)
