@@ -1,10 +1,14 @@
 #pragma once
 
-#include "profile.h"
 #include <stdbool.h>
+#include <storage/storage.h>
 
 typedef struct UniIrTransport UniIrTransport;
 
-UniIrTransport* uni_ir_transport_alloc(void);
+UniIrTransport* uni_ir_transport_alloc(Storage* storage);
 void uni_ir_transport_free(UniIrTransport* transport);
-bool uni_ir_transport_send(UniIrTransport* transport, const UniIrCode* code, bool repeat);
+bool uni_ir_transport_send(
+    UniIrTransport* transport,
+    const char* signal_file,
+    const char* signal_name,
+    bool repeat);

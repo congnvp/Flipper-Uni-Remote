@@ -1,27 +1,20 @@
 # Coding-agent guide
 
-This file is the compact contract for AI coding agents working in this repository.
-
-## Before editing
-
-Read, in order:
-
-1. `README.md`
-2. `docs/ARCHITECTURE.md`
-3. `docs/UI_SYSTEM.md`
-4. `docs/ADDING_REMOTE.md` when changing profiles
+Read `README.md`, `docs/ARCHITECTURE.md`, `docs/UI_SYSTEM.md`, and `docs/REMOTE_PACKAGE.md` before structural edits.
 
 ## Non-negotiable invariants
 
-- The physical LCD remains 128×64. The app uses a logical 64×128 portrait coordinate system and rotates pixels in `src/ui.c`.
-- Portrait input mapping lives in `src/main.c`; do not silently change it.
-- Keep transport code out of UI code.
-- Keep device-specific codes out of engine code; they belong in `profiles/`.
-- Prefer public SDK APIs. Do not depend on private firmware internals without documenting why.
-- `VERSION` is the SemVer source of truth. `application.fam` mirrors only MAJOR.MINOR.
-- A profile addition should not require architectural changes.
+- Native LCD is 128×64; logical app canvas is 64×128 portrait.
+- Long Back is a system escape and must never become configurable.
+- Transport code does not render UI.
+- UI and controller do not embed IR protocol bytes.
+- Real device signals belong in standard `.ir` files inside remote packages.
+- Remote package geometry uses the 3×6 grid, not raw pixel coordinates.
+- Bluetooth secrets/bond keys never go in portable remote packages.
+- `VERSION` is SemVer source of truth; `application.fam` mirrors MAJOR.MINOR.
+- Do not claim a build passed unless uFBT or CI actually built it.
 
-## Validation before committing
+## Expected validation
 
 ```bash
 python3 tools/check_version.py
@@ -29,12 +22,4 @@ ufbt
 ufbt lint
 ```
 
-If uFBT is unavailable, make that limitation explicit in the pull request; never claim a build passed when it was not run.
-
-## Editing rules for agents
-
-- Preserve existing public names unless a breaking change is intentional.
-- Prefer one profile per file.
-- Update docs when behavior or profile format changes.
-- Do not commit `dist/`, `.ufbt/`, generated `.fap`, `.elf`, or build caches.
-- Give concrete test notes for IR/BLE behavior.
+Hardware-facing behavior should also be tested on a physical Flipper Zero and the target device.
