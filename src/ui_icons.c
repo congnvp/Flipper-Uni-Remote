@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
+#include <ctype.h>
 
 static void px(Canvas* canvas, int16_t x, int16_t y, Color color) {
     if(x < 0 || x >= 64 || y < 0 || y >= 128) return;
@@ -135,6 +137,49 @@ static const char* const names[UiIconCount]={
 
 uint8_t ui_icon_count(void){return (uint8_t)UiIconCount;}
 const char* ui_icon_name(UiIcon icon){return icon<UiIconCount?names[icon]:"UNKNOWN";}
+
+bool ui_icon_lookup(const char* id, UiIcon* out) {
+    if(!id || !id[0] || !out) return false;
+    char key[20] = {0};
+    size_t n = strlen(id);
+    if(n >= sizeof(key)) n = sizeof(key) - 1;
+    for(size_t i = 0; i < n; i++) {
+        char ch = id[i];
+        if(ch == '_' || ch == ' ') ch = '-';
+        key[i] = (char)toupper((unsigned char)ch);
+    }
+
+    static const struct { const char* alias; UiIcon icon; } aliases[] = {
+        {"PWR",UiIconPower},{"POWER",UiIconPower},{"MUT",UiIconMute},{"MUTE",UiIconMute},
+        {"SRC",UiIconInput},{"INPUT",UiIconInput},{"HOME",UiIconHome},{"MENU",UiIconMenu},
+        {"BACK",UiIconBack},{"SET",UiIconSettings},{"INFO",UiIconInfo},{"GUIDE",UiIconGuide},
+        {"EXIT",UiIconExit},{"UP",UiIconUp},{"DOWN",UiIconDown},{"LEFT",UiIconLeft},
+        {"RIGHT",UiIconRight},{"OK",UiIconOk},{"VOL+",UiIconVolUp},{"VOL-",UiIconVolDown},
+        {"CH+",UiIconChUp},{"CH-",UiIconChDown},{"PLAY",UiIconPlay},{"PAUSE",UiIconPause},
+        {"STOP",UiIconStop},{"REC",UiIconRecord},{"RECORD",UiIconRecord},{"REW",UiIconRewind},
+        {"FFWD",UiIconFastForward},{"PREV",UiIconPrevious},{"NEXT",UiIconNext},
+        {"CC",UiIconSubtitle},{"SUB",UiIconSubtitle},{"AUDIO",UiIconAudio},{"MIC",UiIconMic},
+        {"VOICE",UiIconVoice},{"SEARCH",UiIconSearch},{"APPS",UiIconApps},{"KEYBOARD",UiIconKeyboard},
+        {"MOUSE",UiIconMouse},{"PAIR",UiIconPair},{"BT",UiIconBluetooth},{"BLUETOOTH",UiIconBluetooth},
+        {"LIGHT",UiIconLight},{"SLEEP",UiIconSleep},{"TIMER",UiIconTimer},{"FAN",UiIconFan},
+        {"TEMP+",UiIconTempUp},{"TEMP-",UiIconTempDown},{"MODE",UiIconMode},{"AUTO",UiIconAuto},
+        {"COOL",UiIconCool},{"SNOW",UiIconCool},{"HEAT",UiIconHeat},{"DRY",UiIconDry},
+        {"SWING",UiIconSwing},{"ECO",UiIconEco},{"TURBO",UiIconTurbo},{"FREEZE",UiIconFreeze},
+        {"ZOOM+",UiIconZoomIn},{"ZOOM-",UiIconZoomOut},{"FOCUS+",UiIconFocusIn},
+        {"FOCUS-",UiIconFocusOut},{"ASPECT",UiIconAspect},{"PROJECTOR",UiIconProjector},
+        {"TV",UiIconTv},{"GAMEPAD",UiIconGamepad},{"BLANK",UiIconBlank},{"REPEAT",UiIconRepeat},
+        {"SHUFFLE",UiIconShuffle},{"FAV",UiIconFavorite},{"FAVORITE",UiIconFavorite},
+        {"BRIGHT+",UiIconBrightnessUp},{"BRIGHT-",UiIconBrightnessDown},{"EJECT",UiIconEject},
+        {"PLUS",UiIconVolUp},{"MINUS",UiIconVolDown}
+    };
+    for(size_t i = 0; i < sizeof(aliases)/sizeof(aliases[0]); i++) {
+        if(strcmp(key, aliases[i].alias) == 0) { *out = aliases[i].icon; return true; }
+    }
+    if(n == 1 && key[0] >= '0' && key[0] <= '9') {
+        *out = (UiIcon)(UiIconNum0 + (key[0] - '0')); return true;
+    }
+    return false;
+}
 
 void ui_icon_draw(Canvas* canvas,UiIcon icon,int16_t x,int16_t y,Color color){
     const int16_t cx=x+9, cy=y+9;
