@@ -2,7 +2,7 @@
 
 A data-driven universal-remote FAP for Flipper Zero. Remote layout, signal bindings, icon IDs and action sequences live in editable text files on the SD card, while the engine stays transport-agnostic.
 
-Current development baseline: **v0.4.2**.
+Current development baseline: **v0.4.3**.
 
 ## Runtime model
 
@@ -160,3 +160,14 @@ MIT.
 - Move uses geometric reflow: different sizes such as 1×1 and 1×2 can exchange regions when a valid placement exists.
 - ADD first uses a free rectangle. If no rectangle exists, large presets use their preferred region and replace overlapping elements; adding a 3×3 D-pad therefore does not require manually deleting surrounding 1×1 buttons.
 - REPLACE changes the selected element to another preset. Same-type replacement preserves mappings/labels while allowing size changes such as screen 3×2 ↔ 3×3.
+
+
+## v0.4.3 cell occupancy
+
+Layout validity is now based on logical occupied cells rather than bounding rectangles.
+
+- Rectangular elements occupy every cell inside their Rect.
+- D-pad `d33` keeps a 3×3 bounding Rect for rendering, but occupies only the five cross cells.
+- The four D-pad corner cells are therefore true free slots for `btn11`.
+- A `1×2` or `2×1` element is also allowed to overlap the D-pad bounding Rect when every cell it actually needs is free.
+- Runtime focus and Layout Editor navigation use the same occupied-cell geometry, so controls placed in D-pad corners remain reachable.
