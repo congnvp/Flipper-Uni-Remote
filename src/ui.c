@@ -225,8 +225,18 @@ static void grid_rect(const UniElement* e, int16_t* x, int16_t* y, int16_t* w, i
 
 static void draw_status(Canvas* canvas, const UniUiState* state) {
     if(!state || !state->remote) return;
+
     text3(canvas, uni_transport_label(state->remote->transport), 1, 1, ColorBlack);
-    text_center3(canvas, state->remote->short_name, 30, 1, ColorBlack);
+
+    char middle[11] = {0};
+    if(state->remote->transport == UniTransportStatefulIr && state->last_signal[0]) {
+        snprintf(middle, sizeof(middle), "%.10s", state->last_signal);
+        text3(canvas, middle, 10, 1, ColorBlack);
+    } else {
+        snprintf(middle, sizeof(middle), "%.3s", state->remote->short_name);
+        text_center3(canvas, middle, 30, 1, ColorBlack);
+    }
+
     const char* right = state->tx_flash ? "TX" : (state->tx_ok ? "" : "ER");
     if(state->dpad_captured && state->dpad_alt) right = "AL";
     if(state->page == UniUiLayoutEditor) right = state->layout_moving ? "MV" : "ED";
