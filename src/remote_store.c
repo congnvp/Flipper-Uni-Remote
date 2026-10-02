@@ -1075,6 +1075,7 @@ bool uni_remote_store_apply_layout(
     memset(remote->elements, 0, UNI_MAX_ELEMENTS * sizeof(UniElement));
     memcpy(remote->elements, layout->elements, layout->count * sizeof(UniElement));
     remote->element_count = layout->count;
+    remote->page_count = 1;
     return uni_remote_store_save(store, remote_index);
 }
 
