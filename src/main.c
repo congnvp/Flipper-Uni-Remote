@@ -143,15 +143,6 @@ static void fill_rect(Canvas* canvas, int16_t x, int16_t y, int16_t w, int16_t h
     for(int16_t j = 0; j < h; j++) hline(canvas, x, y + j, w, color);
 }
 
-static void frame(Canvas* canvas, int16_t x, int16_t y, int16_t w, int16_t h, bool active) {
-    if(w < 3 || h < 3) return;
-    if(active) fill_rect(canvas, x, y, w, h, ColorBlack);
-    hline(canvas, x + 1, y, w - 2, ColorBlack);
-    hline(canvas, x + 1, y + h - 1, w - 2, ColorBlack);
-    vline(canvas, x, y + 1, h - 2, ColorBlack);
-    vline(canvas, x + w - 1, y + 1, h - 2, ColorBlack);
-}
-
 static const uint8_t font3x5[64][5] = {
     [' ' - 32] = {0,0,0,0,0},
     ['+' - 32] = {0,2,7,2,0},
