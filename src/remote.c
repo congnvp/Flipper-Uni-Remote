@@ -13,7 +13,7 @@ const char* uni_transport_label(UniTransport transport) {
     case UniTransportBluetoothHid:
         return "BT";
     case UniTransportStatefulIr:
-        return "ST";
+        return "IR";
     default:
         return "--";
     }
