@@ -237,6 +237,14 @@ static void triangle(Canvas* canvas, int16_t cx, int16_t cy, UiKey direction, Co
     }
 }
 
+static void outline_rect(Canvas* canvas, int16_t x, int16_t y, int16_t w, int16_t h, Color color) {
+    if(w < 2 || h < 2) return;
+    hline(canvas, x, y, w, color);
+    hline(canvas, x, y + h - 1, w, color);
+    vline(canvas, x, y, h, color);
+    vline(canvas, x + w - 1, y, h, color);
+}
+
 static void ring(Canvas* canvas, int16_t cx, int16_t cy, Color color) {
     static const int8_t pts[][2] = {
         {-3,-5},{-2,-6},{-1,-6},{0,-6},{1,-6},{2,-6},{3,-5},
@@ -263,7 +271,7 @@ static void draw_icon(Canvas* canvas, const char* label, int16_t x, int16_t y, C
         hline(canvas, cx + 2, cy - 4, 5, color);
         hline(canvas, cx + 2, cy + 4, 5, color);
     } else if(strcmp(label, "INPUT") == 0) {
-        frame(canvas, x + 3, y + 4, 10, 11, false);
+        outline_rect(canvas, x + 3, y + 4, 10, 11, color);
         hline(canvas, x + 8, y + 9, 7, color);
         triangle(canvas, x + 13, y + 9, KeyRight, color);
     } else if(strcmp(label, "HOME") == 0) {
@@ -344,11 +352,11 @@ static void draw_icon(Canvas* canvas, const char* label, int16_t x, int16_t y, C
     } else if(strcmp(label, "GUIDE") == 0) {
         for(int8_t dx = -5; dx <= 5; dx += 5) {
             for(int8_t dy = -5; dy <= 5; dy += 5) {
-                frame(canvas, cx + dx - 1, cy + dy - 1, 3, 3, false);
+                outline_rect(canvas, cx + dx - 1, cy + dy - 1, 3, 3, color);
             }
         }
     } else if(strcmp(label, "BLANK") == 0) {
-        frame(canvas, cx - 5, cy - 5, 11, 11, false);
+        outline_rect(canvas, cx - 5, cy - 5, 11, 11, color);
     } else {
         char short_label[5] = {0};
         strncpy(short_label, label, 4);
