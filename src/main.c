@@ -231,25 +231,26 @@ static void triangle(Canvas* canvas, int16_t cx, int16_t cy, UiKey direction, Co
 }
 
 static void draw_header(Canvas* canvas, const char* title) {
-    frame(canvas, 1, 1, 62, 18, false);
-    text_center3(canvas, title, 32, 7, ColorBlack);
+    text_center3(canvas, title, 32, 4, ColorBlack);
+    hline(canvas, 2, 13, 60, ColorBlack);
 }
 
+/* Menu/list rows are intentionally borderless. Selection is a compact inverted strip. */
 static void draw_row(Canvas* canvas, int16_t y, const char* label, const char* value, bool active) {
-    frame(canvas, 3, y, 58, 17, active);
+    if(active) fill_rect(canvas, 2, y, 60, 12, ColorBlack);
     Color c = active ? ColorWhite : ColorBlack;
-    text3(canvas, label, 7, y + 6, c);
+    text3(canvas, label, 5, y + 4, c);
     if(value && value[0]) {
         int16_t tw = text_width3(value);
-        text3(canvas, value, 57 - tw, y + 6, c);
+        text3(canvas, value, 59 - tw, y + 4, c);
     }
 }
 
 static size_t scroll_start(size_t selected, size_t count) {
-    if(count <= 5) return 0;
-    if(selected < 2) return 0;
-    if(selected + 3 >= count) return count - 5;
-    return selected - 2;
+    if(count <= 7) return 0;
+    if(selected < 3) return 0;
+    if(selected + 4 >= count) return count - 7;
+    return selected - 3;
 }
 
 static uint8_t page_remote_count(const App* app, uint8_t page) {
@@ -292,27 +293,28 @@ static const char** grid_for_remote(const App* app) {
 }
 
 static void draw_home(Canvas* canvas, const App* app) {
-    frame(canvas, 1, 1, 62, 18, false);
-    triangle(canvas, 6, 10, KeyLeft, ColorBlack);
-    triangle(canvas, 58, 10, KeyRight, ColorBlack);
-    text_center3(canvas, page_names[app->home_page], 32, 7, ColorBlack);
+    triangle(canvas, 6, 8, KeyLeft, ColorBlack);
+    triangle(canvas, 58, 8, KeyRight, ColorBlack);
+    text_center3(canvas, page_names[app->home_page], 32, 4, ColorBlack);
+    hline(canvas, 2, 13, 60, ColorBlack);
 
     uint8_t count = page_remote_count(app, app->home_page);
-    for(uint8_t row = 0; row < count && row < 4; row++) {
+    for(uint8_t row = 0; row < count && row < 6; row++) {
         uint8_t remote = page_remote_at(app, app->home_page, row);
-        draw_row(canvas, 24 + row * 20, app->remotes[remote].name, "", app->home_row == row);
+        draw_row(canvas, 18 + row * 14, app->remotes[remote].name, "", app->home_row == row);
     }
-    if(count == 0) text_center3(canvas, "EMPTY", 32, 55, ColorBlack);
+    if(count == 0) text_center3(canvas, "EMPTY", 32, 45, ColorBlack);
 
-    draw_row(canvas, 107, "SETTINGS", "", app->home_row == count);
+    hline(canvas, 2, 108, 60, ColorBlack);
+    draw_row(canvas, 113, "SETTINGS", "", app->home_row == count);
 }
 
 static void draw_menu(Canvas* canvas, const char* title, const char* const* labels, const char* const* values, size_t count, size_t selected) {
     draw_header(canvas, title);
     size_t start = scroll_start(selected, count);
-    for(size_t row = 0; row < 5 && start + row < count; row++) {
+    for(size_t row = 0; row < 7 && start + row < count; row++) {
         size_t i = start + row;
-        draw_row(canvas, 24 + (int16_t)row * 19, labels[i], values ? values[i] : "", i == selected);
+        draw_row(canvas, 18 + (int16_t)row * 15, labels[i], values ? values[i] : "", i == selected);
     }
 }
 
