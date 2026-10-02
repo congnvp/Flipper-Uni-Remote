@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="dev-v$(cat VERSION)"
+          tag="dev-full-v$(cat VERSION)"
           mapfile -t faps < <(find dist -type f -name '*.fap' -print)
           if (( ${#faps[@]} == 0 )); then
             echo "No .fap files found in dist/"
@@ -60,9 +60,9 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "${faps[@]}" --clobber
             gh release edit "$tag" \
-              --title "Flipper Uni Remote DEV v$(cat VERSION)" \
+              --title "Flipper Uni Remote FULL DEV v$(cat VERSION)" \
               --prerelease \
-              --notes "Development UI/UX build from branch $GITHUB_REF_NAME. Not a stable release."
+              --notes "Integrated development build from branch $GITHUB_REF_NAME. Not a stable release."
           else
             gh release create "$tag" "${faps[@]}" \
               --target "$GITHUB_SHA" \
