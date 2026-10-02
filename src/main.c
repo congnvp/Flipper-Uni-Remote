@@ -559,6 +559,7 @@ static void handle_add_element(UniApp* app, const InputEvent* event, UniKey key)
             &app->store,
             app->ui.selected_remote,
             app->ui.menu_index,
+            app->controller.page,
             &index);
     }
 
