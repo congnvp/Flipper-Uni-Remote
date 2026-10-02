@@ -11,6 +11,7 @@
 #define UNI_DEFAULT_DIR APP_DATA_PATH("remotes/demo_tv")
 #define UNI_DEFAULT_REMOTE APP_DATA_PATH("remotes/demo_tv/remote.ur")
 #define UNI_DEFAULT_SIGNALS APP_DATA_PATH("remotes/demo_tv/signals.ir")
+#define UNI_DEFAULT_ACTIONS APP_DATA_PATH("remotes/demo_tv/actions.ur")
 
 static bool write_text_file(Storage* storage, const char* path, const char* text) {
     File* file = storage_file_alloc(storage);
@@ -42,7 +43,13 @@ static void ensure_default_package(Storage* storage) {
             "Order: 10\n"
             "RepeatEnabled: true\n"
             "SignalFile: signals.ir\n"
+            "ActionFile: actions.ur\n"
             "BluetoothProfile: tv_demo\n"
+            "HardUpHold: \n"
+            "HardDownHold: \n"
+            "HardLeftHold: \n"
+            "HardRightHold: \n"
+            "HardOkHold: \n"
             "ElementCount: 5\n"
             "#\n"
             "Element0Type: status\n"
@@ -58,22 +65,23 @@ static void ensure_default_package(Storage* storage) {
             "Element2Id: channel\n"
             "Element2Rect: 0 3 3 1\n"
             "Element2Label: CH\n"
-            "Element2Left: Prev\n"
-            "Element2Right: Next\n"
+            "Element2Left: sig:Prev\n"
+            "Element2Right: sig:Next\n"
             "#\n"
             "Element3Type: vstep\n"
             "Element3Id: volume\n"
             "Element3Rect: 0 4 1 2\n"
             "Element3Label: VOL\n"
-            "Element3Up: VolUp\n"
-            "Element3Down: VolDown\n"
+            "Element3Up: sig:VolUp\n"
+            "Element3Down: sig:VolDown\n"
             "#\n"
             "Element4Type: button\n"
             "Element4Id: power\n"
             "Element4Rect: 1 4 1 2\n"
             "Element4Label: PWR\n"
-            "Element4Tap: Power\n"
-            "Element4Hold: Mute\n";
+            "Element4Icon: pwr\n"
+            "Element4Tap: sig:Power\n"
+            "Element4Hold: sig:Mute\n";
         write_text_file(storage, UNI_DEFAULT_REMOTE, remote_text);
     }
 
@@ -118,6 +126,22 @@ static void ensure_default_package(Storage* storage) {
             "address: 00 00 00 00\n"
             "command: 5A 00 00 00\n";
         write_text_file(storage, UNI_DEFAULT_SIGNALS, signal_text);
+    }
+
+    if(!storage_file_exists(storage, UNI_DEFAULT_ACTIONS)) {
+        static const char action_text[] =
+            "Filetype: Flipper Uni Remote Actions\n"
+            "Version: 1\n"
+            "ActionCount: 1\n"
+            "#\n"
+            "Action0Id: quiet\n"
+            "Action0Type: sequence\n"
+            "Action0StepCount: 2\n"
+            "Action0Step0: VolDown\n"
+            "Action0Delay0: 120\n"
+            "Action0Step1: VolDown\n"
+            "Action0Delay1: 0\n";
+        write_text_file(storage, UNI_DEFAULT_ACTIONS, action_text);
     }
 }
 
@@ -188,35 +212,56 @@ static bool parse_element_type(const char* text, UniElementType* type) {
     return true;
 }
 
+static void read_element_string(
+    FlipperFormat* ff,
+    uint32_t index,
+    const char* suffix,
+    char* out,
+    size_t out_size) {
+    char key[40];
+    snprintf(key, sizeof(key), "Element%lu%s", (unsigned long)index, suffix);
+    ff_read_string(ff, key, out, out_size, false);
+}
+
 static bool load_element(FlipperFormat* ff, uint32_t index, UniElement* element) {
-    char key[32];
+    char key[40];
     char type_text[16] = {0};
     memset(element, 0, sizeof(UniElement));
-
-#define READ_ELEMENT_STRING(SUFFIX, FIELD, REQUIRED) \
-    do { \
-        snprintf(key, sizeof(key), "Element%lu" SUFFIX, (unsigned long)index); \
-        if(!ff_read_string(ff, key, element->FIELD, sizeof(element->FIELD), REQUIRED)) return false; \
-    } while(0)
 
     snprintf(key, sizeof(key), "Element%luType", (unsigned long)index);
     if(!ff_read_string(ff, key, type_text, sizeof(type_text), true)) return false;
     if(!parse_element_type(type_text, &element->type)) return false;
 
-    READ_ELEMENT_STRING("Id", id, true);
+    snprintf(key, sizeof(key), "Element%luId", (unsigned long)index);
+    if(!ff_read_string(ff, key, element->id, sizeof(element->id), true)) return false;
     snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
     if(!ff_read_rect(ff, key, element)) return false;
-    READ_ELEMENT_STRING("Label", label, false);
-    READ_ELEMENT_STRING("Tap", tap, false);
-    READ_ELEMENT_STRING("Hold", hold, false);
-    READ_ELEMENT_STRING("Up", up, false);
-    READ_ELEMENT_STRING("Down", down, false);
-    READ_ELEMENT_STRING("Left", left, false);
-    READ_ELEMENT_STRING("Right", right, false);
-    READ_ELEMENT_STRING("Ok", ok, false);
-    READ_ELEMENT_STRING("OkHold", ok_hold, false);
 
-#undef READ_ELEMENT_STRING
+    read_element_string(ff, index, "Label", element->label, sizeof(element->label));
+    read_element_string(ff, index, "Icon", element->icon, sizeof(element->icon));
+    read_element_string(ff, index, "HoldIcon", element->hold_icon, sizeof(element->hold_icon));
+
+    read_element_string(ff, index, "Tap", element->tap, sizeof(element->tap));
+    read_element_string(ff, index, "Hold", element->hold, sizeof(element->hold));
+    read_element_string(ff, index, "Up", element->up, sizeof(element->up));
+    read_element_string(ff, index, "Down", element->down, sizeof(element->down));
+    read_element_string(ff, index, "Left", element->left, sizeof(element->left));
+    read_element_string(ff, index, "Right", element->right, sizeof(element->right));
+    read_element_string(ff, index, "Ok", element->ok, sizeof(element->ok));
+    read_element_string(ff, index, "UpHold", element->up_hold, sizeof(element->up_hold));
+    read_element_string(ff, index, "DownHold", element->down_hold, sizeof(element->down_hold));
+    read_element_string(ff, index, "LeftHold", element->left_hold, sizeof(element->left_hold));
+    read_element_string(ff, index, "RightHold", element->right_hold, sizeof(element->right_hold));
+    read_element_string(ff, index, "OkHold", element->ok_hold, sizeof(element->ok_hold));
+
+    read_element_string(ff, index, "UpHoldIcon", element->up_hold_icon, sizeof(element->up_hold_icon));
+    read_element_string(ff, index, "DownHoldIcon", element->down_hold_icon, sizeof(element->down_hold_icon));
+    read_element_string(ff, index, "LeftHoldIcon", element->left_hold_icon, sizeof(element->left_hold_icon));
+    read_element_string(ff, index, "RightHoldIcon", element->right_hold_icon, sizeof(element->right_hold_icon));
+    read_element_string(ff, index, "OkHoldIcon", element->ok_hold_icon, sizeof(element->ok_hold_icon));
+
+    snprintf(key, sizeof(key), "Element%luAltSticky", (unsigned long)index);
+    ff_read_bool(ff, key, &element->alt_sticky, false);
     return true;
 }
 
@@ -232,12 +277,13 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
     FuriString* filetype = furi_string_alloc();
     uint32_t version = 0;
     char transport_text[16] = {0};
-    char signal_file[64] = "signals.ir";
     uint32_t element_count = 0;
 
     memset(remote, 0, sizeof(UniRemote));
     remote->repeat_enabled = true;
     snprintf(remote->id, sizeof(remote->id), "%.23s", folder);
+    snprintf(remote->signal_file, sizeof(remote->signal_file), "signals.ir");
+    snprintf(remote->action_file, sizeof(remote->action_file), "actions.ur");
 
     do {
         if(!flipper_format_file_open_existing(ff, config_path)) break;
@@ -253,31 +299,41 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         if(!parse_transport(transport_text, &remote->transport)) break;
         ff_read_u32(ff, "Order", &remote->order, false);
         ff_read_bool(ff, "RepeatEnabled", &remote->repeat_enabled, false);
-        ff_read_string(ff, "SignalFile", signal_file, sizeof(signal_file), false);
+        ff_read_string(ff, "SignalFile", remote->signal_file, sizeof(remote->signal_file), false);
+        ff_read_string(ff, "ActionFile", remote->action_file, sizeof(remote->action_file), false);
         ff_read_string(
             ff,
             "BluetoothProfile",
             remote->bluetooth_profile,
             sizeof(remote->bluetooth_profile),
             false);
+
+        ff_read_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold], UNI_BINDING_MAX, false);
+        ff_read_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold], UNI_BINDING_MAX, false);
+        ff_read_string(ff, "HardLeftHold", remote->hard_bindings[UniHardLeftHold], UNI_BINDING_MAX, false);
+        ff_read_string(ff, "HardRightHold", remote->hard_bindings[UniHardRightHold], UNI_BINDING_MAX, false);
+        ff_read_string(ff, "HardOkHold", remote->hard_bindings[UniHardOkHold], UNI_BINDING_MAX, false);
+
         if(!ff_read_u32(ff, "ElementCount", &element_count, true)) break;
         if(element_count > UNI_MAX_ELEMENTS) break;
-
         for(uint32_t i = 0; i < element_count; i++) {
             if(!load_element(ff, i, &remote->elements[i])) goto done;
         }
         remote->element_count = element_count;
-        snprintf(
-            remote->config_path,
-            sizeof(remote->config_path),
-            "%s",
-            config_path);
+
+        snprintf(remote->config_path, sizeof(remote->config_path), "%s", config_path);
         snprintf(
             remote->signal_path,
             sizeof(remote->signal_path),
             UNI_REMOTES_DIR "/%s/%s",
             folder,
-            signal_file);
+            remote->signal_file);
+        snprintf(
+            remote->action_path,
+            sizeof(remote->action_path),
+            UNI_REMOTES_DIR "/%s/%s",
+            folder,
+            remote->action_file);
         ok = true;
     } while(false);
 
@@ -322,6 +378,98 @@ static void scan_remotes(UniRemoteStore* store) {
     sort_remotes(store);
 }
 
+static bool write_string(FlipperFormat* ff, const char* key, const char* value) {
+    return flipper_format_write_string_cstr(ff, key, value ? value : "");
+}
+
+static bool write_element(FlipperFormat* ff, size_t index, const UniElement* e) {
+    char key[40];
+    uint32_t rect[4] = {e->x, e->y, e->w, e->h};
+
+#define WRITE_STR(SUFFIX, VALUE) \
+    do { \
+        snprintf(key, sizeof(key), "Element%lu" SUFFIX, (unsigned long)index); \
+        if(!write_string(ff, key, VALUE)) return false; \
+    } while(0)
+
+    WRITE_STR("Type", uni_element_type_name(e->type));
+    WRITE_STR("Id", e->id);
+    snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
+    if(!flipper_format_write_uint32(ff, key, rect, 4)) return false;
+    WRITE_STR("Label", e->label);
+    WRITE_STR("Icon", e->icon);
+    WRITE_STR("HoldIcon", e->hold_icon);
+    WRITE_STR("Tap", e->tap);
+    WRITE_STR("Hold", e->hold);
+    WRITE_STR("Up", e->up);
+    WRITE_STR("Down", e->down);
+    WRITE_STR("Left", e->left);
+    WRITE_STR("Right", e->right);
+    WRITE_STR("Ok", e->ok);
+    WRITE_STR("UpHold", e->up_hold);
+    WRITE_STR("DownHold", e->down_hold);
+    WRITE_STR("LeftHold", e->left_hold);
+    WRITE_STR("RightHold", e->right_hold);
+    WRITE_STR("OkHold", e->ok_hold);
+    WRITE_STR("UpHoldIcon", e->up_hold_icon);
+    WRITE_STR("DownHoldIcon", e->down_hold_icon);
+    WRITE_STR("LeftHoldIcon", e->left_hold_icon);
+    WRITE_STR("RightHoldIcon", e->right_hold_icon);
+    WRITE_STR("OkHoldIcon", e->ok_hold_icon);
+    snprintf(key, sizeof(key), "Element%luAltSticky", (unsigned long)index);
+    if(!flipper_format_write_bool(ff, key, &e->alt_sticky, 1)) return false;
+
+#undef WRITE_STR
+    return true;
+}
+
+bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!store || !remote || !remote->config_path[0]) return false;
+
+    FlipperFormat* ff = flipper_format_file_alloc(store->storage);
+    if(!ff) return false;
+
+    bool ok = false;
+    do {
+        if(!flipper_format_file_open_always(ff, remote->config_path)) break;
+        if(!flipper_format_write_header_cstr(ff, UNI_REMOTE_FILETYPE, UNI_REMOTE_VERSION)) break;
+        if(!write_string(ff, "Id", remote->id)) break;
+        if(!write_string(ff, "Name", remote->name)) break;
+        if(!write_string(ff, "ShortName", remote->short_name)) break;
+
+        const char* transport = remote->transport == UniTransportInfrared ?
+                                    "IR" :
+                                remote->transport == UniTransportBluetoothHid ?
+                                    "BT" :
+                                    "STATE_IR";
+        if(!write_string(ff, "Transport", transport)) break;
+        if(!flipper_format_write_uint32(ff, "Order", &remote->order, 1)) break;
+        if(!flipper_format_write_bool(ff, "RepeatEnabled", &remote->repeat_enabled, 1)) break;
+        if(!write_string(ff, "SignalFile", remote->signal_file)) break;
+        if(!write_string(ff, "ActionFile", remote->action_file)) break;
+        if(!write_string(ff, "BluetoothProfile", remote->bluetooth_profile)) break;
+
+        if(!write_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold])) break;
+        if(!write_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold])) break;
+        if(!write_string(ff, "HardLeftHold", remote->hard_bindings[UniHardLeftHold])) break;
+        if(!write_string(ff, "HardRightHold", remote->hard_bindings[UniHardRightHold])) break;
+        if(!write_string(ff, "HardOkHold", remote->hard_bindings[UniHardOkHold])) break;
+
+        uint32_t count = remote->element_count;
+        if(!flipper_format_write_uint32(ff, "ElementCount", &count, 1)) break;
+        for(size_t i = 0; i < remote->element_count; i++) {
+            if(!write_element(ff, i, &remote->elements[i])) goto done;
+        }
+        ok = true;
+    } while(false);
+
+done:
+    flipper_format_file_close(ff);
+    flipper_format_free(ff);
+    return ok;
+}
+
 bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
     if(!store || !storage) return false;
     memset(store, 0, sizeof(UniRemoteStore));
@@ -333,7 +481,6 @@ bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
         ensure_default_package(storage);
         scan_remotes(store);
     }
-
     return store->count > 0;
 }
 
@@ -365,29 +512,11 @@ size_t uni_remote_store_find_id(const UniRemoteStore* store, const char* id) {
     return 0;
 }
 
-
-static bool update_remote_bool(UniRemote* remote, const char* key, bool value) {
-    if(!remote || !key || !remote->config_path[0]) return false;
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    if(!storage) return false;
-    FlipperFormat* ff = flipper_format_file_alloc(storage);
-    bool ok = false;
-    if(ff && flipper_format_file_open_existing(ff, remote->config_path)) {
-        flipper_format_rewind(ff);
-        ok = flipper_format_update_bool(ff, key, &value, 1);
-        flipper_format_file_close(ff);
-    }
-    if(ff) flipper_format_free(ff);
-    furi_record_close(RECORD_STORAGE);
-    return ok;
-}
-
 bool uni_remote_store_set_repeat(UniRemoteStore* store, size_t remote_index, bool enabled) {
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     if(!remote) return false;
-    if(!update_remote_bool(remote, "RepeatEnabled", enabled)) return false;
     remote->repeat_enabled = enabled;
-    return true;
+    return uni_remote_store_save(store, remote_index);
 }
 
 static bool rects_overlap(
@@ -402,26 +531,19 @@ static bool rects_overlap(
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
-static bool update_element_rect(UniRemote* remote, size_t element_index) {
-    if(!remote || element_index >= remote->element_count || !remote->config_path[0]) return false;
-
-    char key[32];
-    snprintf(key, sizeof(key), "Element%luRect", (unsigned long)element_index);
-    const UniElement* element = &remote->elements[element_index];
-    uint32_t rect[4] = {element->x, element->y, element->w, element->h};
-
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    if(!storage) return false;
-    FlipperFormat* ff = flipper_format_file_alloc(storage);
-    bool ok = false;
-    if(ff && flipper_format_file_open_existing(ff, remote->config_path)) {
-        flipper_format_rewind(ff);
-        ok = flipper_format_update_uint32(ff, key, rect, 4);
-        flipper_format_file_close(ff);
+static bool rect_free(
+    const UniRemote* remote,
+    size_t ignore,
+    uint8_t x,
+    uint8_t y,
+    uint8_t w,
+    uint8_t h) {
+    for(size_t i = 0; i < remote->element_count; i++) {
+        if(i == ignore) continue;
+        const UniElement* e = &remote->elements[i];
+        if(rects_overlap(x, y, w, h, e->x, e->y, e->w, e->h)) return false;
     }
-    if(ff) flipper_format_free(ff);
-    furi_record_close(RECORD_STORAGE);
-    return ok;
+    return true;
 }
 
 bool uni_remote_store_move_element(
@@ -434,8 +556,6 @@ bool uni_remote_store_move_element(
     if(!remote || element_index >= remote->element_count) return false;
 
     UniElement* moving = &remote->elements[element_index];
-    if(!uni_element_focusable(moving)) return false;
-
     const int nx = (int)moving->x + dx;
     const int ny = (int)moving->y + dy;
     if(nx < 0 || ny < 0 || nx + moving->w > 3 || ny + moving->h > 6) return false;
@@ -444,54 +564,173 @@ bool uni_remote_store_move_element(
     for(size_t i = 0; i < remote->element_count; i++) {
         if(i == element_index) continue;
         const UniElement* other = &remote->elements[i];
-        if(rects_overlap(
-               (uint8_t)nx,
-               (uint8_t)ny,
-               moving->w,
-               moving->h,
-               other->x,
-               other->y,
-               other->w,
-               other->h)) {
+        if(rects_overlap((uint8_t)nx, (uint8_t)ny, moving->w, moving->h,
+                         other->x, other->y, other->w, other->h)) {
             if(collision != UNI_MAX_ELEMENTS) return false;
             collision = i;
         }
     }
 
-    const uint8_t old_x = moving->x;
-    const uint8_t old_y = moving->y;
-    uint8_t swap_old_x = 0;
-    uint8_t swap_old_y = 0;
-
+    const uint8_t ox = moving->x;
+    const uint8_t oy = moving->y;
     if(collision != UNI_MAX_ELEMENTS) {
         UniElement* other = &remote->elements[collision];
-        if(other->x != (uint8_t)nx || other->y != (uint8_t)ny || other->w != moving->w ||
-           other->h != moving->h) {
+        if(other->x != (uint8_t)nx || other->y != (uint8_t)ny ||
+           other->w != moving->w || other->h != moving->h) {
             return false;
         }
-        swap_old_x = other->x;
-        swap_old_y = other->y;
-        other->x = old_x;
-        other->y = old_y;
+        other->x = ox;
+        other->y = oy;
     }
-
     moving->x = (uint8_t)nx;
     moving->y = (uint8_t)ny;
+    return uni_remote_store_save(store, remote_index);
+}
 
-    if(!update_element_rect(remote, element_index)) {
-        moving->x = old_x;
-        moving->y = old_y;
-        if(collision != UNI_MAX_ELEMENTS) {
-            remote->elements[collision].x = swap_old_x;
-            remote->elements[collision].y = swap_old_y;
+static bool find_free_position(
+    const UniRemote* remote,
+    uint8_t w,
+    uint8_t h,
+    uint8_t* out_x,
+    uint8_t* out_y) {
+    for(uint8_t y = 0; y + h <= 6; y++) {
+        for(uint8_t x = 0; x + w <= 3; x++) {
+            if(rect_free(remote, UNI_MAX_ELEMENTS, x, y, w, h)) {
+                *out_x = x;
+                *out_y = y;
+                return true;
+            }
         }
+    }
+    return false;
+}
+
+bool uni_remote_store_add_element(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t preset_index,
+    size_t* new_index) {
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    const UniElementPreset* preset = uni_element_preset_get(preset_index);
+    if(!remote || !preset || remote->element_count >= UNI_MAX_ELEMENTS) return false;
+
+    uint8_t x = 0, y = 0;
+    if(!find_free_position(remote, preset->w, preset->h, &x, &y)) return false;
+
+    const size_t index = remote->element_count++;
+    UniElement* e = &remote->elements[index];
+    memset(e, 0, sizeof(UniElement));
+    snprintf(e->id, sizeof(e->id), "%.18s%lu", preset->id, (unsigned long)index);
+    e->type = preset->type;
+    e->x = x;
+    e->y = y;
+    e->w = preset->w;
+    e->h = preset->h;
+    snprintf(e->label, sizeof(e->label), "%s", preset->label);
+    snprintf(e->icon, sizeof(e->icon), "%s", preset->icon);
+
+    if(!uni_remote_store_save(store, remote_index)) {
+        remote->element_count--;
         return false;
     }
-
-    if(collision != UNI_MAX_ELEMENTS && !update_element_rect(remote, collision)) {
-        /* Memory remains in the new visual order; Reload restores the file truth if needed. */
-        return false;
-    }
-
+    if(new_index) *new_index = index;
     return true;
+}
+
+bool uni_remote_store_remove_element(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index) {
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || element_index >= remote->element_count) return false;
+    for(size_t i = element_index; i + 1 < remote->element_count; i++) {
+        remote->elements[i] = remote->elements[i + 1];
+    }
+    remote->element_count--;
+    memset(&remote->elements[remote->element_count], 0, sizeof(UniElement));
+    return uni_remote_store_save(store, remote_index);
+}
+
+bool uni_remote_store_apply_layout(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t layout_index) {
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    const UniLayoutPreset* layout = uni_layout_preset_get(layout_index);
+    if(!remote || !layout || layout->count > UNI_MAX_ELEMENTS) return false;
+
+    memset(remote->elements, 0, sizeof(remote->elements));
+    memcpy(remote->elements, layout->elements, layout->count * sizeof(UniElement));
+    remote->element_count = layout->count;
+    return uni_remote_store_save(store, remote_index);
+}
+
+static char* binding_field(UniElement* e, const char* field) {
+    if(strcmp(field, "tap") == 0) return e->tap;
+    if(strcmp(field, "hold") == 0) return e->hold;
+    if(strcmp(field, "up") == 0) return e->up;
+    if(strcmp(field, "down") == 0) return e->down;
+    if(strcmp(field, "left") == 0) return e->left;
+    if(strcmp(field, "right") == 0) return e->right;
+    if(strcmp(field, "ok") == 0) return e->ok;
+    if(strcmp(field, "up_hold") == 0) return e->up_hold;
+    if(strcmp(field, "down_hold") == 0) return e->down_hold;
+    if(strcmp(field, "left_hold") == 0) return e->left_hold;
+    if(strcmp(field, "right_hold") == 0) return e->right_hold;
+    if(strcmp(field, "ok_hold") == 0) return e->ok_hold;
+    return NULL;
+}
+
+bool uni_remote_store_set_binding(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    const char* field,
+    const char* binding) {
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || element_index >= remote->element_count || !field) return false;
+    char* target = binding_field(&remote->elements[element_index], field);
+    if(!target) return false;
+    snprintf(target, UNI_BINDING_MAX, "%s", binding ? binding : "");
+    return uni_remote_store_save(store, remote_index);
+}
+
+static char* icon_field(UniElement* e, const char* field) {
+    if(strcmp(field, "icon") == 0) return e->icon;
+    if(strcmp(field, "hold_icon") == 0) return e->hold_icon;
+    if(strcmp(field, "up_hold_icon") == 0) return e->up_hold_icon;
+    if(strcmp(field, "down_hold_icon") == 0) return e->down_hold_icon;
+    if(strcmp(field, "left_hold_icon") == 0) return e->left_hold_icon;
+    if(strcmp(field, "right_hold_icon") == 0) return e->right_hold_icon;
+    if(strcmp(field, "ok_hold_icon") == 0) return e->ok_hold_icon;
+    return NULL;
+}
+
+bool uni_remote_store_set_icon(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    const char* field,
+    const char* icon_id) {
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || element_index >= remote->element_count || !field) return false;
+    char* target = icon_field(&remote->elements[element_index], field);
+    if(!target) return false;
+    snprintf(target, UNI_ICON_ID_MAX, "%s", icon_id ? icon_id : "");
+    return uni_remote_store_save(store, remote_index);
+}
+
+bool uni_remote_store_set_hard_binding(
+    UniRemoteStore* store,
+    size_t remote_index,
+    UniHardKeySlot slot,
+    const char* binding) {
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || slot >= UniHardCount) return false;
+    snprintf(
+        remote->hard_bindings[slot],
+        UNI_BINDING_MAX,
+        "%s",
+        binding ? binding : "");
+    return uni_remote_store_save(store, remote_index);
 }

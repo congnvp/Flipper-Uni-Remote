@@ -4,8 +4,7 @@
 #include <input/input.h>
 #include <stdbool.h>
 #include <stddef.h>
-
-#define UNI_CONTROLLER_SIGNAL_MAX UNI_SIGNAL_MAX
+#include <stdint.h>
 
 typedef enum {
     UniKeyUp,
@@ -19,12 +18,23 @@ typedef enum {
 
 typedef struct {
     size_t focus_index;
+    size_t focus_before_capture;
+    bool focus_before_capture_valid;
+
     bool dpad_captured;
+    bool dpad_alt;
+    UniKey dpad_hold_key;
+
+    bool ok_pending;
+    uint32_t ok_pending_tick;
+
+    bool nav_pending;
+    UniKey pending_nav_key;
+
     bool request_home;
-    bool request_exit;
     bool action_ready;
     bool repeat;
-    char signal[UNI_CONTROLLER_SIGNAL_MAX];
+    char binding[UNI_BINDING_MAX];
 } UniController;
 
 void uni_controller_reset(UniController* controller, const UniRemote* remote);
@@ -35,4 +45,5 @@ void uni_controller_handle(
     UniKey key,
     InputType input_type,
     bool repeat_enabled);
+void uni_controller_poll(UniController* controller, const UniRemote* remote);
 UniKey uni_map_physical_key(InputKey key);

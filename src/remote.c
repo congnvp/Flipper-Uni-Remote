@@ -18,3 +18,22 @@ const char* uni_transport_label(UniTransport transport) {
         return "--";
     }
 }
+
+const char* uni_element_type_name(UniElementType type) {
+    switch(type) {
+    case UniElementStatus:
+        return "status";
+    case UniElementScreen:
+        return "screen";
+    case UniElementButton:
+        return "button";
+    case UniElementHStep:
+        return "hstep";
+    case UniElementVStep:
+        return "vstep";
+    case UniElementDpad:
+        return "dpad";
+    default:
+        return "button";
+    }
+}

@@ -1,5 +1,9 @@
 #include "ui.h"
 
+#include "editor_model.h"
+#include "icon_library.h"
+#include "layout_library.h"
+
 #include <gui/canvas.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,54 +32,28 @@ static void fill_rect(Canvas* canvas, int16_t x, int16_t y, int16_t w, int16_t h
 static void frame(Canvas* canvas, int16_t x, int16_t y, int16_t w, int16_t h, bool active) {
     if(w < 3 || h < 3) return;
     if(active) fill_rect(canvas, x, y, w, h, ColorBlack);
-    const Color color = ColorBlack;
-    hline(canvas, x + 1, y, w - 2, color);
-    hline(canvas, x + 1, y + h - 1, w - 2, color);
-    vline(canvas, x, y + 1, h - 2, color);
-    vline(canvas, x + w - 1, y + 1, h - 2, color);
+    hline(canvas, x + 1, y, w - 2, ColorBlack);
+    hline(canvas, x + 1, y + h - 1, w - 2, ColorBlack);
+    vline(canvas, x, y + 1, h - 2, ColorBlack);
+    vline(canvas, x + w - 1, y + 1, h - 2, ColorBlack);
 }
 
 static const uint8_t font3x5[][5] = {
-    [' ' - 32] = {0, 0, 0, 0, 0},
-    ['+' - 32] = {0, 2, 7, 2, 0},
-    ['-' - 32] = {0, 0, 7, 0, 0},
-    ['.' - 32] = {0, 0, 0, 0, 2},
-    ['0' - 32] = {7, 5, 5, 5, 7},
-    ['1' - 32] = {2, 6, 2, 2, 7},
-    ['2' - 32] = {6, 1, 2, 4, 7},
-    ['3' - 32] = {6, 1, 2, 1, 6},
-    ['4' - 32] = {5, 5, 7, 1, 1},
-    ['5' - 32] = {7, 4, 6, 1, 6},
-    ['6' - 32] = {3, 4, 6, 5, 2},
-    ['7' - 32] = {7, 1, 2, 2, 2},
-    ['8' - 32] = {2, 5, 2, 5, 2},
-    ['9' - 32] = {2, 5, 3, 1, 6},
-    ['A' - 32] = {2, 5, 7, 5, 5},
-    ['B' - 32] = {6, 5, 6, 5, 6},
-    ['C' - 32] = {3, 4, 4, 4, 3},
-    ['D' - 32] = {6, 5, 5, 5, 6},
-    ['E' - 32] = {7, 4, 6, 4, 7},
-    ['F' - 32] = {7, 4, 6, 4, 4},
-    ['G' - 32] = {3, 4, 5, 5, 3},
-    ['H' - 32] = {5, 5, 7, 5, 5},
-    ['I' - 32] = {7, 2, 2, 2, 7},
-    ['J' - 32] = {1, 1, 1, 5, 2},
-    ['K' - 32] = {5, 5, 6, 5, 5},
-    ['L' - 32] = {4, 4, 4, 4, 7},
-    ['M' - 32] = {5, 7, 7, 5, 5},
-    ['N' - 32] = {5, 7, 7, 7, 5},
-    ['O' - 32] = {2, 5, 5, 5, 2},
-    ['P' - 32] = {6, 5, 6, 4, 4},
-    ['Q' - 32] = {2, 5, 5, 7, 3},
-    ['R' - 32] = {6, 5, 6, 5, 5},
-    ['S' - 32] = {3, 4, 2, 1, 6},
-    ['T' - 32] = {7, 2, 2, 2, 2},
-    ['U' - 32] = {5, 5, 5, 5, 7},
-    ['V' - 32] = {5, 5, 5, 5, 2},
-    ['W' - 32] = {5, 5, 7, 7, 5},
-    ['X' - 32] = {5, 5, 2, 5, 5},
-    ['Y' - 32] = {5, 5, 2, 2, 2},
-    ['Z' - 32] = {7, 1, 2, 4, 7},
+    [' ' - 32] = {0,0,0,0,0}, ['+' - 32] = {0,2,7,2,0}, ['-' - 32] = {0,0,7,0,0},
+    ['.' - 32] = {0,0,0,0,2},
+    ['0' - 32] = {7,5,5,5,7}, ['1' - 32] = {2,6,2,2,7}, ['2' - 32] = {6,1,2,4,7},
+    ['3' - 32] = {6,1,2,1,6}, ['4' - 32] = {5,5,7,1,1}, ['5' - 32] = {7,4,6,1,6},
+    ['6' - 32] = {3,4,6,5,2}, ['7' - 32] = {7,1,2,2,2}, ['8' - 32] = {2,5,2,5,2},
+    ['9' - 32] = {2,5,3,1,6},
+    ['A' - 32] = {2,5,7,5,5}, ['B' - 32] = {6,5,6,5,6}, ['C' - 32] = {3,4,4,4,3},
+    ['D' - 32] = {6,5,5,5,6}, ['E' - 32] = {7,4,6,4,7}, ['F' - 32] = {7,4,6,4,4},
+    ['G' - 32] = {3,4,5,5,3}, ['H' - 32] = {5,5,7,5,5}, ['I' - 32] = {7,2,2,2,7},
+    ['J' - 32] = {1,1,1,5,2}, ['K' - 32] = {5,5,6,5,5}, ['L' - 32] = {4,4,4,4,7},
+    ['M' - 32] = {5,7,7,5,5}, ['N' - 32] = {5,7,7,7,5}, ['O' - 32] = {2,5,5,5,2},
+    ['P' - 32] = {6,5,6,4,4}, ['Q' - 32] = {2,5,5,7,3}, ['R' - 32] = {6,5,6,5,5},
+    ['S' - 32] = {3,4,2,1,6}, ['T' - 32] = {7,2,2,2,2}, ['U' - 32] = {5,5,5,5,7},
+    ['V' - 32] = {5,5,5,5,2}, ['W' - 32] = {5,5,7,7,5}, ['X' - 32] = {5,5,2,5,5},
+    ['Y' - 32] = {5,5,2,2,2}, ['Z' - 32] = {7,1,2,4,7},
 };
 
 static void text3(Canvas* canvas, const char* text, int16_t x, int16_t y, Color color) {
@@ -121,331 +99,460 @@ static void triangle(Canvas* canvas, int16_t cx, int16_t cy, UniKey direction, C
 static void circle(Canvas* canvas, int16_t cx, int16_t cy, int16_t radius, Color color) {
     for(int16_t x = -radius; x <= radius; x++) {
         for(int16_t y = -radius; y <= radius; y++) {
-            const int16_t d = x * x + y * y;
-            if(d >= radius * radius - radius && d <= radius * radius + radius) {
+            const int16_t d = x*x + y*y;
+            if(d >= radius*radius - radius && d <= radius*radius + radius) {
                 pset(canvas, cx + x, cy + y, color);
             }
         }
     }
 }
 
-static void grid_rect(
-    const UniElement* element,
-    int16_t* x,
-    int16_t* y,
-    int16_t* w,
-    int16_t* h) {
-    *x = grid_x[element->x];
-    *y = grid_y[element->y];
-    *w = grid_x[element->x + element->w] - *x;
-    *h = grid_y[element->y + element->h] - *y;
-}
-
-static void draw_status(Canvas* canvas, const UniUiState* state, const UniElement* element) {
-    int16_t x, y, w, h;
-    grid_rect(element, &x, &y, &w, &h);
-    frame(canvas, x + 1, y + 1, w - 2, h - 2, false);
-    text3(canvas, uni_transport_label(state->remote->transport), x + 4, y + 8, ColorBlack);
-    text_center3(canvas, state->remote->short_name, x + w / 2, y + 8, ColorBlack);
-    const char* status_right = state->tx_flash ? "TX" : (state->tx_ok ? "--" : "ER");
-    if(state->page == UniUiLayoutEditor) status_right = state->layout_moving ? "MV" : "ED";
-    text3(canvas, status_right, x + w - 12, y + 8, ColorBlack);
-}
-
-static void draw_screen(Canvas* canvas, const UniUiState* state, const UniElement* element) {
-    int16_t x, y, w, h;
-    grid_rect(element, &x, &y, &w, &h);
-    frame(canvas, x + 1, y + 1, w - 2, h - 2, false);
-
-    char title[13] = {0};
-    snprintf(title, sizeof(title), "%.12s", state->remote->name);
-    text_center3(canvas, title, x + w / 2, y + 6, ColorBlack);
-
-    const char* middle = state->last_signal[0] ? state->last_signal : element->label;
-    if(!middle[0]) middle = "READY";
-    char signal[13] = {0};
-    snprintf(signal, sizeof(signal), "%.12s", middle);
-    text_center3(canvas, signal, x + w / 2, y + h / 2 - 2, ColorBlack);
-
-    if(state->remote->transport == UniTransportBluetoothHid) {
-        char profile[13] = {0};
-        snprintf(profile, sizeof(profile), "%.12s", state->remote->bluetooth_profile);
-        text_center3(canvas, profile, x + w / 2, y + h - 9, ColorBlack);
-    } else if(state->remote->transport == UniTransportStatefulIr) {
-        text_center3(canvas, "LOCAL STATE", x + w / 2, y + h - 9, ColorBlack);
-    } else {
-        text_center3(
-            canvas,
-            state->tx_ok ? "READY" : "NO SIGNAL",
-            x + w / 2,
-            y + h - 9,
-            ColorBlack);
+static void draw_icon_kind(
+    Canvas* canvas,
+    UniIconKind kind,
+    const char* label,
+    int16_t cx,
+    int16_t cy,
+    Color color) {
+    switch(kind) {
+    case UniIconPower:
+        circle(canvas, cx, cy + 1, 5, color);
+        vline(canvas, cx, cy - 6, 6, color);
+        break;
+    case UniIconMute:
+        hline(canvas, cx - 5, cy - 2, 4, color);
+        vline(canvas, cx - 1, cy - 4, 5, color);
+        hline(canvas, cx + 2, cy - 3, 5, color);
+        hline(canvas, cx + 2, cy + 3, 5, color);
+        break;
+    case UniIconPlay:
+        for(int16_t x=0;x<6;x++) vline(canvas,cx-3+x,cy-x/2,1+x,color);
+        break;
+    case UniIconPause:
+        fill_rect(canvas,cx-4,cy-4,3,9,color);
+        fill_rect(canvas,cx+2,cy-4,3,9,color);
+        break;
+    case UniIconStop:
+        fill_rect(canvas,cx-4,cy-4,9,9,color);
+        break;
+    case UniIconRecord:
+        fill_rect(canvas,cx-3,cy-3,7,7,color);
+        break;
+    case UniIconPrev:
+        triangle(canvas,cx+2,cy,UniKeyLeft,color); vline(canvas,cx-5,cy-4,9,color);
+        break;
+    case UniIconNext:
+        triangle(canvas,cx-2,cy,UniKeyRight,color); vline(canvas,cx+5,cy-4,9,color);
+        break;
+    case UniIconRew:
+        triangle(canvas,cx+3,cy,UniKeyLeft,color); triangle(canvas,cx-3,cy,UniKeyLeft,color);
+        break;
+    case UniIconFfwd:
+        triangle(canvas,cx-3,cy,UniKeyRight,color); triangle(canvas,cx+3,cy,UniKeyRight,color);
+        break;
+    case UniIconHome:
+        hline(canvas,cx-4,cy,9,color); vline(canvas,cx-3,cy,5,color); vline(canvas,cx+3,cy,5,color);
+        triangle(canvas,cx,cy-3,UniKeyUp,color);
+        break;
+    case UniIconBack:
+        triangle(canvas,cx-3,cy,UniKeyLeft,color); hline(canvas,cx-1,cy,7,color);
+        break;
+    case UniIconMenu:
+        hline(canvas,cx-5,cy-4,11,color); hline(canvas,cx-5,cy,11,color); hline(canvas,cx-5,cy+4,11,color);
+        break;
+    case UniIconInfo:
+        text_center3(canvas,"I",cx,cy-2,color);
+        break;
+    case UniIconGear:
+        circle(canvas,cx,cy,4,color); pset(canvas,cx,cy,color);
+        break;
+    case UniIconPlus:
+        hline(canvas,cx-4,cy,9,color); vline(canvas,cx,cy-4,9,color);
+        break;
+    case UniIconMinus:
+        hline(canvas,cx-4,cy,9,color);
+        break;
+    case UniIconSun:
+        circle(canvas,cx,cy,3,color); hline(canvas,cx-6,cy,3,color); hline(canvas,cx+4,cy,3,color);
+        vline(canvas,cx,cy-6,3,color); vline(canvas,cx,cy+4,3,color);
+        break;
+    case UniIconMoon:
+        circle(canvas,cx,cy,5,color); fill_rect(canvas,cx,cy-5,5,10,ColorWhite);
+        break;
+    case UniIconFan:
+        text_center3(canvas,"FAN",cx,cy-2,color);
+        break;
+    case UniIconSnow:
+        hline(canvas,cx-5,cy,11,color); vline(canvas,cx,cy-5,11,color);
+        break;
+    case UniIconHeat:
+        text_center3(canvas,"HOT",cx,cy-2,color);
+        break;
+    case UniIconDrop:
+        triangle(canvas,cx,cy-2,UniKeyUp,color); vline(canvas,cx,cy,5,color);
+        break;
+    case UniIconSource:
+        text_center3(canvas,"SRC",cx,cy-2,color);
+        break;
+    case UniIconLock:
+        frame(canvas,cx-4,cy,9,7,false); circle(canvas,cx,cy,4,color);
+        break;
+    case UniIconText:
+    default:
+        text_center3(canvas,label,cx,cy-2,color);
+        break;
     }
+}
+
+static void draw_icon_id(
+    Canvas* canvas,
+    const char* id,
+    int16_t cx,
+    int16_t cy,
+    Color color,
+    const char* fallback) {
+    const UniIconDef* icon = uni_icon_find(id);
+    if(icon) draw_icon_kind(canvas, icon->kind, icon->short_label, cx, cy, color);
+    else if(fallback && fallback[0]) text_center3(canvas, fallback, cx, cy-2, color);
+}
+
+static void grid_rect(const UniElement* e, int16_t* x, int16_t* y, int16_t* w, int16_t* h) {
+    *x = grid_x[e->x];
+    *y = grid_y[e->y];
+    *w = grid_x[e->x + e->w] - *x;
+    *h = grid_y[e->y + e->h] - *y;
+}
+
+static void draw_status(Canvas* canvas, const UniUiState* state, const UniElement* e) {
+    int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
+    frame(canvas,x+1,y+1,w-2,h-2,false);
+    text3(canvas,uni_transport_label(state->remote->transport),x+4,y+8,ColorBlack);
+    text_center3(canvas,state->remote->short_name,x+w/2,y+8,ColorBlack);
+    const char* right = state->tx_flash ? "TX" : (state->tx_ok ? "--" : "ER");
+    if(state->dpad_captured && state->dpad_alt) right = "AL";
+    if(state->page == UniUiLayoutEditor) right = state->layout_moving ? "MV" : "ED";
+    text3(canvas,right,x+w-12,y+8,ColorBlack);
+}
+
+static void draw_screen(Canvas* canvas, const UniUiState* state, const UniElement* e) {
+    int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
+    frame(canvas,x+1,y+1,w-2,h-2,false);
+    char title[13]={0}; snprintf(title,sizeof(title),"%.12s",state->remote->name);
+    text_center3(canvas,title,x+w/2,y+6,ColorBlack);
+    const char* middle=state->last_signal[0]?state->last_signal:e->label;
+    if(!middle[0]) middle="READY";
+    char value[13]={0}; snprintf(value,sizeof(value),"%.12s",middle);
+    text_center3(canvas,value,x+w/2,y+h/2-2,ColorBlack);
+    if(state->remote->transport==UniTransportStatefulIr)
+        text_center3(canvas,"LOCAL",x+w/2,y+h-9,ColorBlack);
+    else if(state->remote->transport==UniTransportBluetoothHid)
+        text_center3(canvas,"BT PROFILE",x+w/2,y+h-9,ColorBlack);
+    else
+        text_center3(canvas,state->tx_ok?"READY":"NO SIGNAL",x+w/2,y+h-9,ColorBlack);
 }
 
 static void draw_button(
-    Canvas* canvas,
-    const UniElement* element,
-    int16_t x,
-    int16_t y,
-    int16_t w,
-    int16_t h,
-    bool focused) {
-    frame(canvas, x + 1, y + 1, w - 2, h - 2, focused);
-    const Color color = focused ? ColorWhite : ColorBlack;
-    text_center3(canvas, element->label, x + w / 2, y + h / 2 - 2, color);
+    Canvas* canvas,const UniElement* e,int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
+    frame(canvas,x+1,y+1,w-2,h-2,focused);
+    const Color color=focused?ColorWhite:ColorBlack;
+    if(e->icon[0]) draw_icon_id(canvas,e->icon,x+w/2,y+h/2,color,e->label);
+    else text_center3(canvas,e->label,x+w/2,y+h/2-2,color);
 }
 
 static void draw_hstep(
-    Canvas* canvas,
-    const UniElement* element,
-    int16_t x,
-    int16_t y,
-    int16_t w,
-    int16_t h,
-    bool focused) {
-    const int16_t side = (w - 4) / 3;
-    const int16_t left_w = side;
-    const int16_t right_x = x + w - side;
-    frame(canvas, x + 1, y + 1, left_w, h - 2, focused);
-    frame(canvas, right_x - 1, y + 1, side, h - 2, focused);
-    const Color color = focused ? ColorWhite : ColorBlack;
-    triangle(canvas, x + left_w / 2 + 1, y + h / 2, UniKeyLeft, color);
-    triangle(canvas, right_x + side / 2 - 1, y + h / 2, UniKeyRight, color);
-    text_center3(canvas, element->label, x + w / 2, y + h / 2 - 2, ColorBlack);
+    Canvas* canvas,const UniElement* e,int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
+    const int16_t side=(w-4)/3, rx=x+w-side;
+    frame(canvas,x+1,y+1,side,h-2,focused);
+    frame(canvas,rx-1,y+1,side,h-2,focused);
+    const Color color=focused?ColorWhite:ColorBlack;
+    triangle(canvas,x+side/2+1,y+h/2,UniKeyLeft,color);
+    triangle(canvas,rx+side/2-1,y+h/2,UniKeyRight,color);
+    text_center3(canvas,e->label,x+w/2,y+h/2-2,ColorBlack);
 }
 
 static void draw_vstep(
-    Canvas* canvas,
-    const UniElement* element,
-    int16_t x,
-    int16_t y,
-    int16_t w,
-    int16_t h,
-    bool focused) {
-    int16_t button_h = 15;
-    if(h < 39) button_h = (h - 9) / 2;
-    const int16_t bottom_y = y + h - button_h - 1;
-    frame(canvas, x + 1, y + 1, w - 2, button_h, focused);
-    frame(canvas, x + 1, bottom_y, w - 2, button_h, focused);
-    const Color color = focused ? ColorWhite : ColorBlack;
-    triangle(canvas, x + w / 2, y + 1 + button_h / 2, UniKeyUp, color);
-    triangle(canvas, x + w / 2, bottom_y + button_h / 2, UniKeyDown, color);
-    text_center3(canvas, element->label, x + w / 2, y + h / 2 - 2, ColorBlack);
+    Canvas* canvas,const UniElement* e,int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
+    int16_t bh=15; if(h<39) bh=(h-9)/2;
+    const int16_t by=y+h-bh-1;
+    frame(canvas,x+1,y+1,w-2,bh,focused);
+    frame(canvas,x+1,by,w-2,bh,focused);
+    const Color color=focused?ColorWhite:ColorBlack;
+    triangle(canvas,x+w/2,y+1+bh/2,UniKeyUp,color);
+    triangle(canvas,x+w/2,by+bh/2,UniKeyDown,color);
+    text_center3(canvas,e->label,x+w/2,y+h/2-2,ColorBlack);
+}
+
+static const char* dpad_hold_icon(const UniElement* e, UniKey key) {
+    if(key==UniKeyUp) return e->up_hold_icon;
+    if(key==UniKeyDown) return e->down_hold_icon;
+    if(key==UniKeyLeft) return e->left_hold_icon;
+    if(key==UniKeyRight) return e->right_hold_icon;
+    return "";
+}
+
+static void draw_dpad_direction(
+    Canvas* canvas,const UniElement* e,UniKey key,int16_t cx,int16_t cy,Color color,
+    bool alternate,bool held) {
+    const char* icon=dpad_hold_icon(e,key);
+    if((alternate||held) && icon[0]) draw_icon_id(canvas,icon,cx,cy,color,"");
+    else triangle(canvas,cx,cy,key,color);
 }
 
 static void draw_dpad(
-    Canvas* canvas,
-    const UniElement* element,
-    int16_t x,
-    int16_t y,
-    int16_t w,
-    int16_t h,
-    bool focused,
-    bool captured) {
-    const int16_t cw = w / 3;
-    const int16_t ch = h / 3;
-    const int16_t cx = x + cw;
-    const int16_t cy = y + ch;
-    const bool active = focused && captured;
-    const Color color = active ? ColorWhite : ColorBlack;
+    Canvas* canvas,const UniUiState* state,const UniElement* e,
+    int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
+    const int16_t cw=w/3,ch=h/3,cx=x+cw,cy=y+ch;
+    const bool active=focused&&state->dpad_captured;
+    const Color color=active?ColorWhite:ColorBlack;
 
-    frame(canvas, cx + 1, y + 1, cw - 2, ch - 2, active);
-    frame(canvas, x + 1, cy + 1, cw - 2, ch - 2, active);
-    frame(canvas, cx + 1, cy + 1, cw - 2, ch - 2, active);
-    frame(canvas, x + 2 * cw + 1, cy + 1, w - 2 * cw - 2, ch - 2, active);
-    frame(canvas, cx + 1, y + 2 * ch + 1, cw - 2, h - 2 * ch - 2, active);
+    frame(canvas,cx+1,y+1,cw-2,ch-2,active);
+    frame(canvas,x+1,cy+1,cw-2,ch-2,active);
+    frame(canvas,cx+1,cy+1,cw-2,ch-2,active);
+    frame(canvas,x+2*cw+1,cy+1,w-2*cw-2,ch-2,active);
+    frame(canvas,cx+1,y+2*ch+1,cw-2,h-2*ch-2,active);
 
-    triangle(canvas, cx + cw / 2, y + ch / 2, UniKeyUp, color);
-    triangle(canvas, x + cw / 2, cy + ch / 2, UniKeyLeft, color);
-    triangle(
-        canvas,
-        x + 2 * cw + (w - 2 * cw) / 2,
-        cy + ch / 2,
-        UniKeyRight,
-        color);
-    triangle(
-        canvas,
-        cx + cw / 2,
-        y + 2 * ch + (h - 2 * ch) / 2,
-        UniKeyDown,
-        color);
-    circle(canvas, cx + cw / 2, cy + ch / 2, 4, color);
+    draw_dpad_direction(canvas,e,UniKeyUp,cx+cw/2,y+ch/2,color,state->dpad_alt,state->dpad_hold_key==UniKeyUp);
+    draw_dpad_direction(canvas,e,UniKeyLeft,x+cw/2,cy+ch/2,color,state->dpad_alt,state->dpad_hold_key==UniKeyLeft);
+    draw_dpad_direction(canvas,e,UniKeyRight,x+2*cw+(w-2*cw)/2,cy+ch/2,color,state->dpad_alt,state->dpad_hold_key==UniKeyRight);
+    draw_dpad_direction(canvas,e,UniKeyDown,cx+cw/2,y+2*ch+(h-2*ch)/2,color,state->dpad_alt,state->dpad_hold_key==UniKeyDown);
 
-    if(element->label[0]) {
-        text_center3(canvas, element->label, x + w / 2, y + h - 6, ColorBlack);
+    if(state->dpad_alt && e->ok_hold_icon[0])
+        draw_icon_id(canvas,e->ok_hold_icon,cx+cw/2,cy+ch/2,color,"OK");
+    else
+        circle(canvas,cx+cw/2,cy+ch/2,4,color);
+}
+
+static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
+    const UniElement* e=&state->remote->elements[index];
+    const bool focused=uni_element_focusable(e)&&index==state->focus_index;
+    int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
+    switch(e->type) {
+    case UniElementStatus: draw_status(canvas,state,e); break;
+    case UniElementScreen: draw_screen(canvas,state,e); break;
+    case UniElementButton: draw_button(canvas,e,x,y,w,h,focused); break;
+    case UniElementHStep: draw_hstep(canvas,e,x,y,w,h,focused); break;
+    case UniElementVStep: draw_vstep(canvas,e,x,y,w,h,focused); break;
+    case UniElementDpad: draw_dpad(canvas,state,e,x,y,w,h,focused); break;
     }
 }
 
-static void draw_element(Canvas* canvas, const UniUiState* state, size_t index) {
-    const UniElement* element = &state->remote->elements[index];
-    const bool focused = uni_element_focusable(element) && index == state->focus_index;
-    int16_t x, y, w, h;
-    grid_rect(element, &x, &y, &w, &h);
-
-    switch(element->type) {
-    case UniElementStatus:
-        draw_status(canvas, state, element);
-        break;
-    case UniElementScreen:
-        draw_screen(canvas, state, element);
-        break;
-    case UniElementButton:
-        draw_button(canvas, element, x, y, w, h, focused);
-        break;
-    case UniElementHStep:
-        draw_hstep(canvas, element, x, y, w, h, focused);
-        break;
-    case UniElementVStep:
-        draw_vstep(canvas, element, x, y, w, h, focused);
-        break;
-    case UniElementDpad:
-        draw_dpad(canvas, element, x, y, w, h, focused, state->dpad_captured);
-        break;
-    }
-}
-
-static void draw_home(Canvas* canvas, const UniUiState* state) {
-    frame(canvas, 1, 1, 62, 19, false);
-    text3(canvas, "UNI", 4, 8, ColorBlack);
-    text_center3(canvas, "REMOTE", 32, 8, ColorBlack);
-
-    const size_t count = uni_remote_store_count(state->store);
-    const size_t start = state->selected_remote > 3 ? state->selected_remote - 3 : 0;
-    for(size_t row = 0; row < 5 && start + row < count; row++) {
-        const size_t index = start + row;
-        const UniRemote* remote = uni_remote_store_get(state->store, index);
-        const int16_t y = 24 + (int16_t)row * 18;
-        const bool active = index == state->selected_remote;
-        frame(canvas, 3, y, 58, 15, active);
-        const Color color = active ? ColorWhite : ColorBlack;
-        text3(canvas, remote->short_name, 7, y + 5, color);
-        char name[10] = {0};
-        snprintf(name, sizeof(name), "%.9s", remote->name);
-        text3(canvas, name, 21, y + 5, color);
-        text3(canvas, uni_transport_label(remote->transport), 51, y + 5, color);
-    }
-
-    text_center3(canvas, "BACK MENU", 32, 116, ColorBlack);
-}
-
-static void draw_remote(Canvas* canvas, const UniUiState* state) {
-    for(size_t i = 0; i < state->remote->element_count; i++) draw_element(canvas, state, i);
-}
-
-static const UniRemote* menu_remote(const UniUiState* state) {
-    if(state->remote) return state->remote;
-    return uni_remote_store_get(state->store, state->selected_remote);
-}
-
-static void draw_menu_header(Canvas* canvas, const char* title) {
-    frame(canvas, 1, 1, 62, 19, false);
-    text_center3(canvas, title, 32, 8, ColorBlack);
-}
-
-static void draw_menu_row(
-    Canvas* canvas,
-    int16_t y,
-    const char* label,
-    const char* value,
-    bool active) {
-    frame(canvas, 3, y, 58, 17, active);
-    const Color color = active ? ColorWhite : ColorBlack;
-    text3(canvas, label, 7, y + 6, color);
-    if(value && value[0]) {
-        const int16_t width = text_width3(value);
-        text3(canvas, value, 57 - width, y + 6, color);
-    }
-}
-
-static void draw_main_menu(Canvas* canvas, const UniUiState* state) {
-    static const char* labels[] = {"GLOBAL", "REMOTE", "LAYOUT", "RELOAD", "BACK"};
-    draw_menu_header(canvas, "MENU");
-    for(size_t i = 0; i < 5; i++) {
-        draw_menu_row(canvas, 24 + (int16_t)i * 19, labels[i], NULL, i == state->menu_index);
-    }
-}
-
-static void draw_global_settings(Canvas* canvas, const UniUiState* state) {
-    draw_menu_header(canvas, "GLOBAL");
-    const char* repeat = state->settings->repeat_enabled ? "ON" : "OFF";
-    const char* auto_open = state->settings->open_default ? "ON" : "OFF";
-    const size_t default_index =
-        uni_remote_store_find_id(state->store, state->settings->default_remote);
-    const UniRemote* default_remote = uni_remote_store_get(state->store, default_index);
-    const char* short_name = default_remote ? default_remote->short_name : "---";
-
-    draw_menu_row(canvas, 26, "REPEAT", repeat, state->menu_index == 0);
-    draw_menu_row(canvas, 47, "AUTO", auto_open, state->menu_index == 1);
-    draw_menu_row(canvas, 68, "DEFAULT", short_name, state->menu_index == 2);
-    draw_menu_row(canvas, 89, "BACK", NULL, state->menu_index == 3);
-    text_center3(canvas, "LR CHANGE OK SET", 32, 116, ColorBlack);
-}
-
-static void draw_remote_settings(Canvas* canvas, const UniUiState* state) {
-    const UniRemote* remote = menu_remote(state);
-    draw_menu_header(canvas, "REMOTE");
-    if(!remote) {
-        text_center3(canvas, "NO REMOTE", 32, 55, ColorBlack);
-        return;
-    }
-
-    char bt[9] = {0};
-    snprintf(bt, sizeof(bt), "%.8s", remote->bluetooth_profile);
-    draw_menu_row(
-        canvas,
-        24,
-        "REPEAT",
-        remote->repeat_enabled ? "ON" : "OFF",
-        state->menu_index == 0);
-    draw_menu_row(canvas, 43, "DEFAULT", "SET", state->menu_index == 1);
-    draw_menu_row(canvas, 62, "LAYOUT", "EDIT", state->menu_index == 2);
-    draw_menu_row(canvas, 81, "BT ID", bt[0] ? bt : "---", state->menu_index == 3);
-    draw_menu_row(canvas, 100, "BACK", NULL, state->menu_index == 4);
-}
-
-static void draw_layout_editor(Canvas* canvas, const UniUiState* state) {
+static void draw_remote(Canvas* canvas,const UniUiState* state) {
     if(!state->remote) return;
-    draw_remote(canvas, state);
-    const UniElement* element =
-        state->layout_element < state->remote->element_count ?
-            &state->remote->elements[state->layout_element] :
-            NULL;
-    if(element) {
-        int16_t x, y, w, h;
-        grid_rect(element, &x, &y, &w, &h);
-        pset(canvas, x + 1, y + 1, ColorBlack);
-        pset(canvas, x + w - 2, y + 1, ColorBlack);
-        pset(canvas, x + 1, y + h - 2, ColorBlack);
-        pset(canvas, x + w - 2, y + h - 2, ColorBlack);
+    for(size_t i=0;i<state->remote->element_count;i++) draw_element(canvas,state,i);
+}
+
+static void draw_menu_header(Canvas* canvas,const char* title) {
+    frame(canvas,1,1,62,19,false); text_center3(canvas,title,32,8,ColorBlack);
+}
+
+static void draw_menu_row(Canvas* canvas,int16_t y,const char* label,const char* value,bool active) {
+    frame(canvas,3,y,58,17,active);
+    const Color color=active?ColorWhite:ColorBlack;
+    text3(canvas,label,7,y+6,color);
+    if(value&&value[0]) {
+        const int16_t tw=text_width3(value);
+        text3(canvas,value,57-tw,y+6,color);
     }
 }
 
-void uni_ui_draw(Canvas* canvas, const UniUiState* state) {
-    canvas_clear(canvas);
-    canvas_set_color(canvas, ColorBlack);
+static size_t scroll_start(size_t selected,size_t count) {
+    if(count<=5) return 0;
+    if(selected<2) return 0;
+    if(selected+3>=count) return count-5;
+    return selected-2;
+}
 
-    switch(state->page) {
-    case UniUiHome:
-        draw_home(canvas, state);
-        break;
-    case UniUiRemote:
-        if(state->remote) draw_remote(canvas, state);
-        else draw_home(canvas, state);
-        break;
-    case UniUiMenu:
-        draw_main_menu(canvas, state);
-        break;
-    case UniUiGlobalSettings:
-        draw_global_settings(canvas, state);
-        break;
-    case UniUiRemoteSettings:
-        draw_remote_settings(canvas, state);
-        break;
-    case UniUiLayoutEditor:
-        draw_layout_editor(canvas, state);
-        break;
+static void draw_home(Canvas* canvas,const UniUiState* state) {
+    draw_menu_header(canvas,"UNI REMOTE");
+    const size_t count=uni_remote_store_count(state->store);
+    const size_t start=scroll_start(state->selected_remote,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t index=start+row;
+        const UniRemote* r=uni_remote_store_get(state->store,index);
+        char right[4]={0}; snprintf(right,sizeof(right),"%.3s",uni_transport_label(r->transport));
+        draw_menu_row(canvas,24+(int16_t)row*19,r->name,right,index==state->selected_remote);
     }
+    text_center3(canvas,"BACK MENU",32,119,ColorBlack);
+}
 
-    canvas_set_color(canvas, ColorBlack);
+static void draw_main_menu(Canvas* canvas,const UniUiState* state) {
+    static const char* labels[]={"GLOBAL","REMOTE","LAYOUT","RELOAD","BACK"};
+    draw_menu_header(canvas,"MENU");
+    for(size_t i=0;i<5;i++) draw_menu_row(canvas,24+(int16_t)i*19,labels[i],"",i==state->menu_index);
+}
+
+static void draw_global(Canvas* canvas,const UniUiState* state) {
+    draw_menu_header(canvas,"GLOBAL");
+    const size_t di=uni_remote_store_find_id(state->store,state->settings->default_remote);
+    const UniRemote* dr=uni_remote_store_get(state->store,di);
+    draw_menu_row(canvas,26,"REPEAT",state->settings->repeat_enabled?"ON":"OFF",state->menu_index==0);
+    draw_menu_row(canvas,47,"AUTO",state->settings->open_default?"ON":"OFF",state->menu_index==1);
+    draw_menu_row(canvas,68,"DEFAULT",dr?dr->short_name:"---",state->menu_index==2);
+    draw_menu_row(canvas,89,"BACK","",state->menu_index==3);
+}
+
+static void draw_remote_settings(Canvas* canvas,const UniUiState* state) {
+    const UniRemote* r=state->remote?state->remote:uni_remote_store_get(state->store,state->selected_remote);
+    draw_menu_header(canvas,"REMOTE");
+    static const char* labels[]={"REPEAT","DEFAULT","LAYOUT","KEYMAP","BT ID","BACK"};
+    const size_t count=6,start=scroll_start(state->menu_index,count);
+    for(size_t row=0;row<5;row++) {
+        const size_t i=start+row; if(i>=count) break;
+        const char* value="";
+        char bt[9]={0};
+        if(i==0) value=r&&r->repeat_enabled?"ON":"OFF";
+        else if(i==1) value="SET";
+        else if(i==2) value="EDIT";
+        else if(i==3) value="EDIT";
+        else if(i==4) { if(r) snprintf(bt,sizeof(bt),"%.8s",r->bluetooth_profile); value=bt; }
+        draw_menu_row(canvas,24+(int16_t)row*19,labels[i],value,i==state->menu_index);
+    }
+}
+
+static void draw_layout_editor(Canvas* canvas,const UniUiState* state) {
+    draw_remote(canvas,state);
+    if(!state->remote||state->layout_element>=state->remote->element_count) return;
+    const UniElement* e=&state->remote->elements[state->layout_element];
+    int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
+    pset(canvas,x+1,y+1,ColorBlack); pset(canvas,x+w-2,y+1,ColorBlack);
+    pset(canvas,x+1,y+h-2,ColorBlack); pset(canvas,x+w-2,y+h-2,ColorBlack);
+}
+
+static void draw_layout_tools(Canvas* canvas,const UniUiState* state) {
+    static const char* labels[]={"ADD","REMOVE","MAP","ICON","TEMPLATE","DONE"};
+    draw_menu_header(canvas,"LAYOUT TOOLS");
+    const size_t start=scroll_start(state->menu_index,6);
+    for(size_t row=0;row<5;row++) {
+        const size_t i=start+row; if(i>=6) break;
+        draw_menu_row(canvas,24+(int16_t)row*19,labels[i],"",i==state->menu_index);
+    }
+}
+
+static void draw_add_element(Canvas* canvas,const UniUiState* state) {
+    draw_menu_header(canvas,"ADD ELEMENT");
+    const size_t count=uni_element_preset_count(),start=scroll_start(state->menu_index,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t i=start+row;
+        const UniElementPreset* p=uni_element_preset_get(i);
+        draw_menu_row(canvas,24+(int16_t)row*19,p->name,p->id,i==state->menu_index);
+    }
+}
+
+static void draw_layout_preset(Canvas* canvas,const UniUiState* state) {
+    draw_menu_header(canvas,"TEMPLATE");
+    const size_t count=uni_layout_preset_count(),start=scroll_start(state->menu_index,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t i=start+row;
+        const UniLayoutPreset* p=uni_layout_preset_get(i);
+        draw_menu_row(canvas,24+(int16_t)row*19,p->name,p->id,i==state->menu_index);
+    }
+}
+
+static const UniElement* edited_element(const UniUiState* state) {
+    if(!state->remote||state->layout_element>=state->remote->element_count) return NULL;
+    return &state->remote->elements[state->layout_element];
+}
+
+static void draw_map_field(Canvas* canvas,const UniUiState* state) {
+    const UniElement* e=edited_element(state);
+    draw_menu_header(canvas,"MAP FIELD");
+    const size_t count=uni_editor_binding_count(e),start=scroll_start(state->menu_index,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t i=start+row;
+        draw_menu_row(canvas,24+(int16_t)row*19,uni_editor_binding_label(e,i),"",i==state->menu_index);
+    }
+}
+
+static void draw_map_kind(Canvas* canvas,const UniUiState* state) {
+    static const char* labels[]={"SIGNAL","SEQUENCE","CLEAR","BACK"};
+    draw_menu_header(canvas,"ACTION TYPE");
+    for(size_t i=0;i<4;i++) draw_menu_row(canvas,26+(int16_t)i*21,labels[i],"",i==state->menu_index);
+}
+
+static size_t sequence_count(const UniActionCatalog* catalog) {
+    size_t n=0;
+    for(size_t i=0;i<catalog->count;i++) if(catalog->actions[i].type==UniActionSequence) n++;
+    return n;
+}
+
+static const UniNamedAction* sequence_at(const UniActionCatalog* catalog,size_t index) {
+    size_t n=0;
+    for(size_t i=0;i<catalog->count;i++) {
+        if(catalog->actions[i].type!=UniActionSequence) continue;
+        if(n++==index) return &catalog->actions[i];
+    }
+    return NULL;
+}
+
+static void draw_map_pick(Canvas* canvas,const UniUiState* state) {
+    const bool signal=state->picker_kind==UniPickSignal;
+    draw_menu_header(canvas,signal?"SIGNAL":"SEQUENCE");
+    const size_t count=signal?state->action_engine->signals.count:sequence_count(&state->action_engine->actions);
+    if(count==0) { text_center3(canvas,"EMPTY",32,58,ColorBlack); return; }
+    const size_t start=scroll_start(state->menu_index,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t i=start+row;
+        const char* name="";
+        if(signal) name=state->action_engine->signals.names[i];
+        else {
+            const UniNamedAction* a=sequence_at(&state->action_engine->actions,i);
+            name=a?a->id:"";
+        }
+        draw_menu_row(canvas,24+(int16_t)row*19,name,signal?"SIG":"SEQ",i==state->menu_index);
+    }
+}
+
+static void draw_icon_field(Canvas* canvas,const UniUiState* state) {
+    const UniElement* e=edited_element(state);
+    draw_menu_header(canvas,"ICON FIELD");
+    const size_t count=uni_editor_icon_count(e),start=scroll_start(state->menu_index,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t i=start+row;
+        draw_menu_row(canvas,24+(int16_t)row*19,uni_editor_icon_label(e,i),"",i==state->menu_index);
+    }
+}
+
+static void draw_icon_pick(Canvas* canvas,const UniUiState* state) {
+    draw_menu_header(canvas,"ICON LIBRARY");
+    const size_t count=uni_icon_count()+1,start=scroll_start(state->menu_index,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t i=start+row;
+        if(i==0) draw_menu_row(canvas,24+(int16_t)row*19,"NONE","",state->menu_index==0);
+        else {
+            const UniIconDef* icon=uni_icon_get(i-1);
+            draw_menu_row(canvas,24+(int16_t)row*19,icon->short_label,icon->id,i==state->menu_index);
+        }
+    }
+}
+
+static void draw_keymap(Canvas* canvas,const UniUiState* state) {
+    draw_menu_header(canvas,"HARD KEYMAP");
+    const size_t count=UniHardCount+1,start=scroll_start(state->menu_index,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t i=start+row;
+        if(i<UniHardCount) draw_menu_row(canvas,24+(int16_t)row*19,uni_editor_hard_label((UniHardKeySlot)i),"MAP",i==state->menu_index);
+        else draw_menu_row(canvas,24+(int16_t)row*19,"BACK","",i==state->menu_index);
+    }
+}
+
+void uni_ui_draw(Canvas* canvas,const UniUiState* state) {
+    canvas_clear(canvas); canvas_set_color(canvas,ColorBlack);
+    switch(state->page) {
+    case UniUiHome: draw_home(canvas,state); break;
+    case UniUiRemote: draw_remote(canvas,state); break;
+    case UniUiMenu: draw_main_menu(canvas,state); break;
+    case UniUiGlobalSettings: draw_global(canvas,state); break;
+    case UniUiRemoteSettings: draw_remote_settings(canvas,state); break;
+    case UniUiLayoutEditor: draw_layout_editor(canvas,state); break;
+    case UniUiLayoutTools: draw_layout_tools(canvas,state); break;
+    case UniUiAddElement: draw_add_element(canvas,state); break;
+    case UniUiLayoutPreset: draw_layout_preset(canvas,state); break;
+    case UniUiMapField: draw_map_field(canvas,state); break;
+    case UniUiMapKind: draw_map_kind(canvas,state); break;
+    case UniUiMapPick: draw_map_pick(canvas,state); break;
+    case UniUiIconField: draw_icon_field(canvas,state); break;
+    case UniUiIconPick: draw_icon_pick(canvas,state); break;
+    case UniUiKeymap: draw_keymap(canvas,state); break;
+    }
+    canvas_set_color(canvas,ColorBlack);
 }
