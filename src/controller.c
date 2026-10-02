@@ -39,7 +39,7 @@ static size_t first_focusable(const UniRemote* remote, uint8_t page) {
     for(size_t i = 0; i < remote->element_count; i++) {
         if(remote->elements[i].page == page && uni_element_focusable(&remote->elements[i])) return i;
     }
-    return 0;
+    return remote->element_count;
 }
 
 static void set_focus(
@@ -103,7 +103,19 @@ bool uni_controller_move_focus(
         return true;
     }
 
-    if((direction == UniKeyUp || direction == UniKeyDown) && remote->page_count > 1) {
+    bool at_page_edge = false;
+    if(direction == UniKeyUp) {
+        for(uint8_t x = 0; x < 3; x++) {
+            if(uni_element_occupies_cell(current, x, 0)) { at_page_edge = true; break; }
+        }
+    } else if(direction == UniKeyDown) {
+        for(uint8_t x = 0; x < 3; x++) {
+            if(uni_element_occupies_cell(current, x, 5)) { at_page_edge = true; break; }
+        }
+    }
+
+    if(at_page_edge && (direction == UniKeyUp || direction == UniKeyDown) &&
+       remote->page_count > 1) {
         uint8_t target = controller->page;
         if(direction == UniKeyDown) target = (uint8_t)((target + 1) % remote->page_count);
         else target = target == 0 ? (uint8_t)(remote->page_count - 1) : (uint8_t)(target - 1);
@@ -374,7 +386,9 @@ void uni_controller_handle(
     if(repeat && (!repeat_enabled || !remote->repeat_enabled)) return;
 
     if(element->type == UniElementButton) {
-        if(key == UniKeyOk && input_type == InputTypeShort) {
+        if(key == UniKeyOk && input_type == InputTypePress && !element->hold[0]) {
+            emit(controller, element->tap, false);
+        } else if(key == UniKeyOk && input_type == InputTypeShort && element->hold[0]) {
             emit(controller, element->tap, false);
         } else if(key == UniKeyOk && input_type == InputTypeLong) {
             if(element->hold[0]) emit(controller, element->hold, false);
