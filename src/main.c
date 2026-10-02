@@ -40,11 +40,18 @@ static void uni_draw_callback(Canvas* canvas, void* context) {
     UniApp* app = context;
     if(app->ui.page == UniUiLayoutEditor) {
         app->ui.focus_index = app->ui.layout_element;
+        app->ui.remote_page =
+            app->ui.remote && app->ui.layout_element < app->ui.remote->element_count ?
+                app->ui.remote->elements[app->ui.layout_element].page :
+                0U;
+        app->ui.ok_pressed = false;
         app->ui.dpad_captured = false;
         app->ui.dpad_alt = false;
         app->ui.dpad_hold_key = UniKeyUnknown;
     } else {
         app->ui.focus_index = app->controller.focus_index;
+        app->ui.remote_page = app->controller.page;
+        app->ui.ok_pressed = app->controller.ok_pressed;
         app->ui.dpad_captured = app->controller.dpad_captured;
         app->ui.dpad_alt = app->controller.dpad_alt;
         app->ui.dpad_hold_key = app->controller.dpad_hold_key;
@@ -918,6 +925,7 @@ int32_t uni_remote_app(void* p) {
     }
 
     if(app->gui) furi_record_close(RECORD_GUI);
+    uni_action_engine_deinit(&app->actions);
     if(app->ir) uni_ir_transport_free(app->ir);
     if(app->storage) furi_record_close(RECORD_STORAGE);
     if(app->view_port) view_port_free(app->view_port);
