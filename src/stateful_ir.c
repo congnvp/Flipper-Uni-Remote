@@ -329,10 +329,21 @@ static void pana_byte(uint32_t* t,size_t* n,uint8_t v){
     for(uint8_t bit=0;bit<8;bit++){pana_append(t,n,PANA_BIT_MARK);pana_append(t,n,(v&(1U<<bit))?PANA_ONE:PANA_ZERO);}
 }
 static size_t pana_sections(const uint8_t* a,size_t an,const uint8_t* b,size_t bn,uint32_t* t){
-    size_t n=0; pana_append(t,&n,PANA_HDR_MARK);pana_append(t,&n,PANA_HDR_SPACE);
-    for(size_t i=0;i<an;i++)pana_byte(t,&n,a[i]);pana_append(t,&n,PANA_BIT_MARK);pana_append(t,&n,PANA_GAP);
-    pana_append(t,&n,PANA_HDR_MARK);pana_append(t,&n,PANA_HDR_SPACE);
-    for(size_t i=0;i<bn;i++)pana_byte(t,&n,b[i]);pana_append(t,&n,PANA_BIT_MARK);return n;
+    size_t n=0;
+    pana_append(t,&n,PANA_HDR_MARK);
+    pana_append(t,&n,PANA_HDR_SPACE);
+    for(size_t i=0;i<an;i++) {
+        pana_byte(t,&n,a[i]);
+    }
+    pana_append(t,&n,PANA_BIT_MARK);
+    pana_append(t,&n,PANA_GAP);
+    pana_append(t,&n,PANA_HDR_MARK);
+    pana_append(t,&n,PANA_HDR_SPACE);
+    for(size_t i=0;i<bn;i++) {
+        pana_byte(t,&n,b[i]);
+    }
+    pana_append(t,&n,PANA_BIT_MARK);
+    return n;
 }
 static uint8_t pana_checksum(const uint8_t* f,size_t s,size_t e){uint8_t v=0;for(size_t i=s;i<e;i++)v=(uint8_t)(v+f[i]);return v;}
 static uint8_t pana_mode(const UniAcState* s){
@@ -387,8 +398,16 @@ static uint8_t carrier_build(const UniAcState* s,uint8_t out[10]){
     out[6]=(uint8_t)((fan<<5)|mode);out[7]=0;if(ext)out[8]=s->turbo?1:3;out[n-1]=xor_sum(out,(uint8_t)(n-1));return n;
 }
 static void carrier_frame(const uint8_t* d,uint8_t n,uint32_t* t,uint16_t* p){
-    t[(*p)++]=T_HDR_MARK;t[(*p)++]=T_HDR_SPACE;
-    for(uint8_t i=0;i<n;i++)for(uint8_t bit=0;bit<8;bit++){bool one=(d[i]&(0x80U>>bit))!=0;t[(*p)++]=T_BIT;t[(*p)++]=one?T_ONE:T_ZERO;}t[(*p)++]=T_BIT;
+    t[(*p)++]=T_HDR_MARK;
+    t[(*p)++]=T_HDR_SPACE;
+    for(uint8_t i=0;i<n;i++) {
+        for(uint8_t bit=0;bit<8;bit++) {
+            bool one=(d[i]&(0x80U>>bit))!=0;
+            t[(*p)++]=T_BIT;
+            t[(*p)++]=one?T_ONE:T_ZERO;
+        }
+    }
+    t[(*p)++]=T_BIT;
 }
 static void carrier_send_bytes(const uint8_t* d,uint8_t n,uint8_t frames){
     uint32_t t[T_MAX];uint16_t p=0;for(uint8_t f=0;f<frames;f++){if(f)t[p++]=T_GAP;carrier_frame(d,n,t,&p);}infrared_send_raw_ext(t,p,true,IR_FREQ,TOSHIBA_DUTY);
