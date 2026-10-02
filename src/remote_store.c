@@ -317,6 +317,11 @@ static bool load_element(FlipperFormat* ff, uint32_t index, UniElement* element)
 
     snprintf(key, sizeof(key), "Element%luId", (unsigned long)index);
     if(!ff_read_string(ff, key, element->id, sizeof(element->id), true)) return false;
+    uint32_t page = 0;
+    snprintf(key, sizeof(key), "Element%luPage", (unsigned long)index);
+    ff_read_u32(ff, key, &page, false);
+    if(page >= UNI_MAX_PAGES) return false;
+    element->page = (uint8_t)page;
     snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
     if(!ff_read_rect(ff, key, element)) return false;
 
@@ -364,6 +369,7 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
 
     memset(remote, 0, sizeof(UniRemote));
     remote->repeat_enabled = true;
+    remote->page_count = 1;
     snprintf(remote->id, sizeof(remote->id), "%.23s", folder);
     snprintf(remote->signal_file, sizeof(remote->signal_file), "signals.ir");
     snprintf(remote->action_file, sizeof(remote->action_file), "actions.ur");
@@ -382,6 +388,10 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         if(!parse_transport(transport_text, &remote->transport)) break;
         ff_read_u32(ff, "Order", &remote->order, false);
         ff_read_bool(ff, "RepeatEnabled", &remote->repeat_enabled, false);
+        uint32_t page_count = 1;
+        ff_read_u32(ff, "PageCount", &page_count, false);
+        if(page_count < 1 || page_count > UNI_MAX_PAGES) break;
+        remote->page_count = (uint8_t)page_count;
         ff_read_string(ff, "SignalFile", remote->signal_file, sizeof(remote->signal_file), false);
         ff_read_string(ff, "ActionFile", remote->action_file, sizeof(remote->action_file), false);
         ff_read_string(
@@ -498,6 +508,9 @@ static bool write_element(FlipperFormat* ff, size_t index, const UniElement* e) 
 
     WRITE_STR("Type", uni_element_type_name(e->type));
     WRITE_STR("Id", e->id);
+    uint32_t page = e->page;
+    snprintf(key, sizeof(key), "Element%luPage", (unsigned long)index);
+    if(!flipper_format_write_uint32(ff, key, &page, 1)) return false;
     snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
     if(!flipper_format_write_uint32(ff, key, rect, 4)) return false;
     WRITE_STR("Label", e->label);
@@ -553,6 +566,8 @@ bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
         if(!write_string(ff, "Transport", transport)) break;
         if(!flipper_format_write_uint32(ff, "Order", &remote->order, 1)) break;
         if(!flipper_format_write_bool(ff, "RepeatEnabled", &remote->repeat_enabled, 1)) break;
+        uint32_t page_count = remote->page_count ? remote->page_count : 1;
+        if(!flipper_format_write_uint32(ff, "PageCount", &page_count, 1)) break;
         if(!write_string(ff, "SignalFile", remote->signal_file)) break;
         if(!write_string(ff, "ActionFile", remote->action_file)) break;
         if(!write_string(ff, "BluetoothProfile", remote->bluetooth_profile)) break;
@@ -699,6 +714,7 @@ static bool elements_overlap_at(
     uint8_t bx,
     uint8_t by) {
     if(!a || !b) return false;
+    if(a->page != b->page) return false;
     for(uint8_t y = 0; y < 6; y++) {
         for(uint8_t x = 0; x < 3; x++) {
             if(uni_element_occupies_cell_at(a, ax, ay, x, y) &&
@@ -923,11 +939,13 @@ static void init_from_preset(
     UniElement* element,
     const UniElementPreset* preset,
     const char* id,
+    uint8_t page,
     uint8_t x,
     uint8_t y) {
     memset(element, 0, sizeof(UniElement));
     snprintf(element->id, sizeof(element->id), "%s", id ? id : preset->id);
     element->type = preset->type;
+    element->page = page;
     element->x = x;
     element->y = y;
     element->w = preset->w;
@@ -940,14 +958,17 @@ bool uni_remote_store_add_element(
     UniRemoteStore* store,
     size_t remote_index,
     size_t preset_index,
+    uint8_t page,
     size_t* new_index) {
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     const UniElementPreset* preset = uni_element_preset_get(preset_index);
     if(!remote || !preset) return false;
 
+    if(page >= UNI_MAX_PAGES) return false;
     UniElement candidate = {0};
     candidate.type = preset->type;
+    candidate.page = page;
     candidate.w = preset->w;
     candidate.h = preset->h;
 
@@ -968,7 +989,8 @@ bool uni_remote_store_add_element(
     UniElement* e = &remote->elements[index];
     char id[UNI_ID_MAX];
     snprintf(id, sizeof(id), "%.18s%lu", preset->id, (unsigned long)index);
-    init_from_preset(e, preset, id, x, y);
+    init_from_preset(e, preset, id, page, x, y);
+    if(remote->page_count <= page) remote->page_count = (uint8_t)(page + 1);
 
     if(!uni_remote_store_save(store, remote_index)) {
         remote->element_count--;
@@ -1016,6 +1038,7 @@ bool uni_remote_store_replace_element(
             &remote->elements[element_index],
             preset,
             old.id,
+            old.page,
             x,
             y);
     }
