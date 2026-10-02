@@ -508,25 +508,46 @@ static uint8_t runtime_page_count(const App* app) {
     }
 }
 
+static bool runtime_scroll_vertical(const App* app) {
+    return app->remotes[app->selected_remote].kind == RemoteAc ||
+           app->remotes[app->selected_remote].kind == RemoteGeneric;
+}
+
 static void draw_page_indicator(Canvas* canvas, const App* app) {
     const uint8_t count = runtime_page_count(app);
     if(count == 0) return;
 
-    /* 3px bottom rail: inactive page = 1px, active page = 2px. */
     const uint8_t gap = 2;
     const uint8_t total = (uint8_t)(count + (count - 1) * gap + 1);
-    int16_t x = (60 - total) / 2;
-    const int16_t y = 125;
 
-    for(uint8_t i = 0; i < count; i++) {
-        if(i == app->runtime_page) {
-            hline(canvas, x, y, 2, ColorBlack);
-            x += 2;
-        } else {
-            pset(canvas, x, y, ColorBlack);
-            x += 1;
+    if(runtime_scroll_vertical(app)) {
+        /* Right 2px rail: inactive = 1x1, active = 1x2. */
+        int16_t y = 1 + (119 - total) / 2;
+        const int16_t x = 61;
+        for(uint8_t i = 0; i < count; i++) {
+            if(i == app->runtime_page) {
+                vline(canvas, x, y, 2, ColorBlack);
+                y += 2;
+            } else {
+                pset(canvas, x, y, ColorBlack);
+                y += 1;
+            }
+            if(i + 1 < count) y += gap;
         }
-        if(i + 1 < count) x += gap;
+    } else {
+        /* Bottom 2px rail: inactive = 1x1, active = 2x1. */
+        int16_t x = 1 + (59 - total) / 2;
+        const int16_t y = 121;
+        for(uint8_t i = 0; i < count; i++) {
+            if(i == app->runtime_page) {
+                hline(canvas, x, y, 2, ColorBlack);
+                x += 2;
+            } else {
+                pset(canvas, x, y, ColorBlack);
+                x += 1;
+            }
+            if(i + 1 < count) x += gap;
+        }
     }
 }
 
@@ -534,16 +555,16 @@ static void draw_grid(Canvas* canvas, const App* app, bool editor) {
     const char** labels = grid_for_remote(app);
 
     /*
-     * Exact pixel geometry:
-     * X: 19 + 1 + 19 + 1 + 19 + 1 + 3(page rail) + 1 = 64.
-     * Y: six (19 + 1) rows = 120, then 4px reserved system gap,
-     *    3px page rail, 1px outer line = 128.
+     * Exact test geometry requested:
+     * X: 1 + 3*(19 + 1) + 2(page rail) + 1 = 64.
+     * Y: 1 + 6*(19 + 1) + 2(page rail) + 1 = 124.
+     * The remaining four portrait pixels (y=124..127) stay outside this frame.
      */
     for(uint8_t row = 0; row < 6; row++) {
         for(uint8_t col = 0; col < 3; col++) {
             uint8_t i = row * 3 + col;
-            int16_t x = col * 20;
-            int16_t y = row * 20;
+            int16_t x = 1 + col * 20;
+            int16_t y = 1 + row * 20;
             bool active = i == app->grid_focus;
 
             if(active) fill_rect(canvas, x, y, 19, 19, ColorBlack);
@@ -551,20 +572,24 @@ static void draw_grid(Canvas* canvas, const App* app, bool editor) {
         }
     }
 
-    /* Shared 1px grid separators; element areas remain exactly 19x19. */
-    vline(canvas, 19, 0, 120, ColorBlack);
-    vline(canvas, 39, 0, 120, ColorBlack);
-    vline(canvas, 59, 0, 120, ColorBlack);
-    hline(canvas, 0, 19, 60, ColorBlack);
-    hline(canvas, 0, 39, 60, ColorBlack);
-    hline(canvas, 0, 59, 60, ColorBlack);
-    hline(canvas, 0, 79, 60, ColorBlack);
-    hline(canvas, 0, 99, 60, ColorBlack);
-    hline(canvas, 0, 119, 60, ColorBlack);
+    /* Top/left border, then shared 1px separators around 19x19 cells. */
+    hline(canvas, 0, 0, 64, ColorBlack);
+    vline(canvas, 0, 0, 124, ColorBlack);
 
-    /* 3px right system rail + 1px outer edge. */
-    vline(canvas, 63, 0, 128, ColorBlack);
-    hline(canvas, 0, 127, 64, ColorBlack);
+    vline(canvas, 20, 0, 121, ColorBlack);
+    vline(canvas, 40, 0, 121, ColorBlack);
+    vline(canvas, 60, 0, 124, ColorBlack);
+
+    hline(canvas, 0, 20, 61, ColorBlack);
+    hline(canvas, 0, 40, 61, ColorBlack);
+    hline(canvas, 0, 60, 61, ColorBlack);
+    hline(canvas, 0, 80, 61, ColorBlack);
+    hline(canvas, 0, 100, 61, ColorBlack);
+    hline(canvas, 0, 120, 64, ColorBlack);
+
+    /* 2px rails: x=61..62 for vertical paging, y=121..122 for horizontal paging. */
+    vline(canvas, 63, 0, 124, ColorBlack);
+    hline(canvas, 0, 123, 64, ColorBlack);
 
     if(!editor) draw_page_indicator(canvas, app);
 
@@ -681,15 +706,28 @@ static void runtime_grid_move(App* app, UiKey key) {
     uint8_t col = app->grid_focus % 3;
     const uint8_t pages = runtime_page_count(app);
 
-    if(key == KeyRight && col == 2) {
-        app->runtime_page = (app->runtime_page + 1) % pages;
-        app->grid_focus = row * 3;
-        return;
-    }
-    if(key == KeyLeft && col == 0) {
-        app->runtime_page = app->runtime_page == 0 ? pages - 1 : app->runtime_page - 1;
-        app->grid_focus = row * 3 + 2;
-        return;
+    if(runtime_scroll_vertical(app)) {
+        if(key == KeyDown && row == 5) {
+            app->runtime_page = (app->runtime_page + 1) % pages;
+            app->grid_focus = col;
+            return;
+        }
+        if(key == KeyUp && row == 0) {
+            app->runtime_page = app->runtime_page == 0 ? pages - 1 : app->runtime_page - 1;
+            app->grid_focus = 15 + col;
+            return;
+        }
+    } else {
+        if(key == KeyRight && col == 2) {
+            app->runtime_page = (app->runtime_page + 1) % pages;
+            app->grid_focus = row * 3;
+            return;
+        }
+        if(key == KeyLeft && col == 0) {
+            app->runtime_page = app->runtime_page == 0 ? pages - 1 : app->runtime_page - 1;
+            app->grid_focus = row * 3 + 2;
+            return;
+        }
     }
 
     grid_move(app, key);
