@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string.h>\n#include "ui_icons.h"
 
 #define INPUT_QUEUE_SIZE 8
 #define HOME_PAGE_COUNT 4
@@ -679,6 +679,47 @@ static void draw_controls(Canvas* canvas, const App* app) {
     draw_grid(canvas, app, false);
 }
 
+static uint8_t icon_demo_pages(void) {
+    return (uint8_t)((ui_icon_count() + 17) / 18);
+}
+
+static void draw_icon_demo(Canvas* canvas, const App* app) {
+    uint8_t pages = icon_demo_pages();
+    uint8_t base = (uint8_t)(app->runtime_page * 18);
+    uint8_t selected = (uint8_t)(base + app->grid_focus);
+    const char* name = selected < ui_icon_count() ? ui_icon_name((UiIcon)selected) : "EMPTY";
+    char short_name[11] = {0};
+    strncpy(short_name, name, 10);
+    text3(canvas, short_name, 1, 1, ColorBlack);
+
+    char pg[6] = {'P',(char)('1'+app->runtime_page),'/',(char)('0'+pages),'\0','\0'};
+    int16_t pw = text_width3(pg);
+    text3(canvas, pg, 63 - pw, 1, ColorBlack);
+
+    for(uint8_t row=0; row<6; row++) {
+        for(uint8_t col=0; col<3; col++) {
+            uint8_t slot=(uint8_t)(row*3+col);
+            uint8_t idx=(uint8_t)(base+slot);
+            int16_t x=col*20, y=8+row*20;
+            bool focused=slot==app->grid_focus;
+            bool pressed=focused && app->runtime_pressed;
+            bool filled=focused && !pressed;
+            Color icon_color=filled?ColorWhite:ColorBlack;
+            draw_button_boundary(canvas,x,y,filled,ColorBlack);
+            if(idx<ui_icon_count()) ui_icon_draw(canvas,(UiIcon)idx,x,y,icon_color);
+        }
+    }
+
+    const uint8_t gap=2;
+    const uint8_t total=(uint8_t)(pages+(pages-1)*gap+1);
+    int16_t yy=8+(120-total)/2;
+    for(uint8_t i=0;i<pages;i++){
+        if(i==app->runtime_page){vline(canvas,61,yy,2,ColorBlack);yy+=2;}
+        else {pset(canvas,61,yy,ColorBlack);yy+=1;}
+        if(i+1<pages) yy+=gap;
+    }
+}
+
 static void draw_control_field(Canvas* canvas, const App* app) {
     static const char* labels[] = {"TAP","HOLD","CLEAR"};
     draw_menu(canvas, "CONTROL", labels, NULL, 3, app->menu_index);
@@ -877,6 +918,17 @@ static void handle_short(App* app, UiKey key) {
         return;
     }
 
+    if(app->screen == ScreenIconDemo) {
+        uint8_t row=app->grid_focus/3;
+        uint8_t col=app->grid_focus%3;
+        uint8_t pages=icon_demo_pages();
+        if(key==KeyBack){app->runtime_pressed=false;app->screen=ScreenSettings;app->menu_index=5;return;}
+        if(key==KeyDown && row==5){app->runtime_page=(app->runtime_page+1)%pages;app->grid_focus=col;return;}
+        if(key==KeyUp && row==0){app->runtime_page=app->runtime_page==0?pages-1:app->runtime_page-1;app->grid_focus=(uint8_t)(15+col);return;}
+        if(key==KeyUp||key==KeyDown||key==KeyLeft||key==KeyRight) grid_move(app,key);
+        return;
+    }
+
     if(app->screen == ScreenInfo) {
         if(key == KeyBack || key == KeyOk) app->screen = app->info_return;
         return;
@@ -892,7 +944,7 @@ static void handle_short(App* app, UiKey key) {
 
     if(app->screen == ScreenSettings) {
         if(key == KeyBack) { app->screen = ScreenHome; return; }
-        if(key == KeyUp || key == KeyDown) { menu_move(app, 5, key); return; }
+        if(key == KeyUp || key == KeyDown) { menu_move(app, 6, key); return; }
         if(key != KeyOk) return;
         switch(app->menu_index) {
         case 0: app->screen = ScreenRemoteManager; app->menu_index = 0; break;
@@ -1090,7 +1142,7 @@ int32_t uni_remote_app(void* p) {
              * A future IR core can transmit once on Press and repeat only for
              * commands explicitly marked repeatable.
              */
-            if(app->screen == ScreenRuntime && key == KeyOk) {
+            if((app->screen == ScreenRuntime || app->screen == ScreenIconDemo) && key == KeyOk) {
                 if(event.type == InputTypePress) {
                     app->runtime_pressed = true;
                 } else if(event.type == InputTypeRelease) {
