@@ -8,6 +8,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,6 +39,37 @@ jobs:
           path: ${{ steps.build.outputs.fap-artifacts }}
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish DEV prerelease
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/dev/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="dev-v$(cat VERSION)"
+          mapfile -t faps < <(find dist -type f -name '*.fap' -print)
+          if (( ${#faps[@]} == 0 )); then
+            echo "No .fap files found in dist/"
+            exit 1
+          fi
+
+          git tag -f "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag" --force
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${faps[@]}" --clobber
+            gh release edit "$tag" \
+              --title "Flipper Uni Remote DEV v$(cat VERSION)" \
+              --prerelease \
+              --notes "Development UI/UX build from branch $GITHUB_REF_NAME. Not a stable release."
+          else
+            gh release create "$tag" "${faps[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "Flipper Uni Remote DEV v$(cat VERSION)" \
+              --prerelease \
+              --notes "Development UI/UX build from branch $GITHUB_REF_NAME. Not a stable release."
+          fi
 
       - name: Lint C sources (advisory)
         continue-on-error: true

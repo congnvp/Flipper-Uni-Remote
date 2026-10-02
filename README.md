@@ -38,19 +38,24 @@ Runtime remote screens use the fixed logical **3 columns × 6 rows** grid.
 
 ## DEV build
 
-The development branch is:
+Development branch:
 
 ```text
 dev/ui-v0.1.0
 ```
 
-GitHub Actions builds the branch with official uFBT and publishes an artifact whose name begins:
+Development release tag:
 
 ```text
-flipper-uni-remote-dev-v0.1.0-
+dev-v0.1.0
 ```
 
-The on-device About screen also identifies the build as `V0.1.0 DEV`.
+Every push to a `dev/**` branch is built with official uFBT. The FAP is available in two places:
+
+1. GitHub Actions artifact named `flipper-uni-remote-dev-v0.1.0-...`.
+2. GitHub prerelease `dev-v0.1.0`, whose FAP asset is replaced by the newest successful dev build.
+
+The on-device About screen identifies the build as `V0.1.0 DEV`.
 
 ## Scope of v0.1.0 DEV
 
