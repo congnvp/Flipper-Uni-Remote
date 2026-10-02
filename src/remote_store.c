@@ -662,11 +662,9 @@ bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
     store->storage = storage;
 
     storage_common_mkdir(storage, UNI_REMOTES_DIR);
+    /* Built-in demo packages are create-only; existing user packages are never overwritten. */
+    ensure_default_package(storage);
     scan_remotes(store);
-    if(store->count == 0) {
-        ensure_default_package(storage);
-        scan_remotes(store);
-    }
     return store->count > 0;
 }
 
