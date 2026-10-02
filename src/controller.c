@@ -103,18 +103,7 @@ bool uni_controller_move_focus(
         return true;
     }
 
-    bool at_page_edge = false;
-    if(direction == UniKeyUp) {
-        for(uint8_t x = 0; x < 3; x++) {
-            if(uni_element_occupies_cell(current, x, 0)) { at_page_edge = true; break; }
-        }
-    } else if(direction == UniKeyDown) {
-        for(uint8_t x = 0; x < 3; x++) {
-            if(uni_element_occupies_cell(current, x, 5)) { at_page_edge = true; break; }
-        }
-    }
-
-    if(at_page_edge && (direction == UniKeyUp || direction == UniKeyDown) &&
+    if((direction == UniKeyUp || direction == UniKeyDown) &&
        remote->page_count > 1) {
         uint8_t target = controller->page;
         if(direction == UniKeyDown) target = (uint8_t)((target + 1) % remote->page_count);
