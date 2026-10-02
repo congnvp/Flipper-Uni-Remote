@@ -308,6 +308,12 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
             remote->bluetooth_profile,
             sizeof(remote->bluetooth_profile),
             false);
+        ff_read_string(
+            ff,
+            "StateProfile",
+            remote->state_profile,
+            sizeof(remote->state_profile),
+            false);
 
         ff_read_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold], UNI_BINDING_MAX, false);
         ff_read_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold], UNI_BINDING_MAX, false);
@@ -463,6 +469,7 @@ bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
         if(!write_string(ff, "SignalFile", remote->signal_file)) break;
         if(!write_string(ff, "ActionFile", remote->action_file)) break;
         if(!write_string(ff, "BluetoothProfile", remote->bluetooth_profile)) break;
+        if(!write_string(ff, "StateProfile", remote->state_profile)) break;
 
         if(!write_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold])) break;
         if(!write_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold])) break;

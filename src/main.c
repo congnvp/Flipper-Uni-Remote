@@ -6,6 +6,7 @@
 #include "layout_library.h"
 #include "remote_store.h"
 #include "settings.h"
+#include "stateful_ir.h"
 #include "ui.h"
 
 #include <furi.h>
@@ -30,6 +31,7 @@ typedef struct {
     UniRemoteStore store;
     UniSettings settings;
     UniController controller;
+    UniStatefulEngine stateful;
     UniUiState ui;
     UniUiPage menu_return_page;
     bool running;
@@ -67,7 +69,12 @@ static UniRemote* selected_remote_mut(UniApp* app) {
 
 static void load_actions_for_selected(UniApp* app) {
     const UniRemote* remote = selected_remote(app);
-    if(remote) uni_action_engine_load(&app->actions, remote);
+    if(!remote) return;
+    if(remote->transport == UniTransportStatefulIr) {
+        uni_stateful_open(&app->stateful, remote);
+    } else {
+        uni_action_engine_load(&app->actions, remote);
+    }
 }
 
 static void refresh_remote_pointer(UniApp* app) {
@@ -195,11 +202,25 @@ static void dispatch_remote_action(UniApp* app) {
         "%s",
         app->controller.binding);
     app->ui.tx_flash = true;
-    app->ui.tx_ok = uni_action_engine_execute(
-        &app->actions,
-        app->ui.remote,
-        app->controller.binding,
-        app->controller.repeat);
+    if(app->ui.remote->transport == UniTransportStatefulIr) {
+        app->ui.tx_ok = uni_stateful_execute(
+            &app->stateful,
+            app->ui.remote,
+            app->controller.binding,
+            app->controller.repeat);
+        if(app->ui.tx_ok) {
+            uni_stateful_format_status(
+                &app->stateful,
+                app->ui.last_signal,
+                sizeof(app->ui.last_signal));
+        }
+    } else {
+        app->ui.tx_ok = uni_action_engine_execute(
+            &app->actions,
+            app->ui.remote,
+            app->controller.binding,
+            app->controller.repeat);
+    }
     app->ui.tx_flash = false;
     app->controller.action_ready = false;
 }
@@ -870,6 +891,7 @@ int32_t uni_remote_app(void* p) {
         app->storage && uni_remote_store_init(&app->store, app->storage);
     app->ir = app->storage ? uni_ir_transport_alloc(app->storage) : NULL;
     uni_action_engine_init(&app->actions, app->storage, app->ir);
+    uni_stateful_init(&app->stateful, app->storage);
 
     app->repeat_enabled = settings_ok ? app->settings.repeat_enabled : true;
     app->running = app->input_queue && app->view_port && app->gui && app->storage &&
