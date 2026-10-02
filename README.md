@@ -2,7 +2,7 @@
 
 A data-driven universal-remote FAP for Flipper Zero, designed so humans and coding agents can extend remotes without recompiling protocol data into the application.
 
-Current development baseline: **v0.2.0**.
+Current development baseline: **v0.3.0**.
 
 ## v0.2 architecture
 
@@ -41,8 +41,13 @@ Bluetooth bond keys are deliberately kept outside portable remote packages. `Blu
 - Global `settings.ur` with `RepeatEnabled` and `DefaultRemote`.
 - Per-remote `Order`, `RepeatEnabled`, `Transport`, and `BluetoothProfile` fields.
 - A demo remote package is created automatically on first run if no valid remote exists.
+- Spatial focus navigation uses the actual 3×6 element positions rather than file order.
+- On-device Menu via Short Back.
+- Global Settings: repeat, auto-open default remote, default remote.
+- Remote Settings: per-remote repeat, set default, Bluetooth profile display.
+- On-device Layout Editor with grid movement and same-size element swapping.
 
-Not yet implemented: on-device layout editor, IR learning/assignment UI, stateful AC decoders/encoders, BLE HID transport, Bluetooth identity switching, and settings menus. The v0.2 schema is designed so these features do not require rewriting the renderer or IR files.
+Not yet implemented: IR learning/assignment UI, stateful AC decoders/encoders, BLE HID transport, Bluetooth identity switching, and full hardware-key remapping. The data schema is designed so these features do not require rewriting the renderer or IR files.
 
 ## Build
 
@@ -57,6 +62,15 @@ With a Flipper connected:
 ```bash
 ufbt launch
 ```
+
+## On-device controls
+
+- Short Back: open Menu (outside captured D-pad).
+- Long Back: reserved system escape; never remappable.
+- H-step: Left/Right operate; Up/Down leave the element.
+- V-step: Up/Down operate; Left/Right leave the element.
+- D-pad: captures directions/OK; Long Back releases capture.
+- Layout Editor: OK toggles Select/Move. While moving, directions move one grid cell; moving onto a same-size element swaps them.
 
 ## Editing a remote without recompiling
 

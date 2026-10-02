@@ -1,6 +1,7 @@
 #include "controller.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 UniKey uni_map_physical_key(InputKey key) {

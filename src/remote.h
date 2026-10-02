@@ -53,6 +53,7 @@ typedef struct {
     UniTransport transport;
     uint32_t order;
     bool repeat_enabled;
+    char config_path[UNI_PATH_MAX];
     char signal_path[UNI_PATH_MAX];
     char bluetooth_profile[UNI_BT_PROFILE_MAX];
     UniElement elements[UNI_MAX_ELEMENTS];

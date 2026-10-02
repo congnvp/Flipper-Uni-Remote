@@ -28,7 +28,7 @@ Elements store grid rectangles, never absolute pixels.
 
 Status and Screen are not focusable.
 
-The v0.2 focus traversal follows element order in `remote.ur`. This is deliberate and deterministic. A later spatial-navigation pass may choose the nearest element geometrically without changing the package schema.
+Focus traversal is spatial: the controller selects the nearest focusable element that lies fully in the requested direction. Element order in `remote.ur` no longer determines navigation.
 
 ## System escape
 
@@ -49,3 +49,14 @@ It must never be made configurable.
 - compact labels: English, preferably ≤3 characters.
 - focused controls invert button background/glyph where applicable.
 - display state should distinguish local/unconfirmed state from confirmed state when stateful transports are added.
+
+
+## Menu and layout editor
+
+Short Back opens the app Menu when not inside D-pad capture. Long Back remains system-reserved.
+
+Layout Editor has two modes:
+- Select: directions move selection spatially between interactive elements.
+- Move: OK enters/leaves Move mode; directions move the selected element by one 3×6 grid cell.
+
+If the destination is occupied by exactly one element with identical dimensions, the elements swap positions. Invalid overlaps are rejected.

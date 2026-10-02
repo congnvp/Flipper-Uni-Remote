@@ -28,6 +28,7 @@ typedef struct {
 } UniController;
 
 void uni_controller_reset(UniController* controller, const UniRemote* remote);
+bool uni_controller_move_focus(UniController* controller, const UniRemote* remote, UniKey direction);
 void uni_controller_handle(
     UniController* controller,
     const UniRemote* remote,
