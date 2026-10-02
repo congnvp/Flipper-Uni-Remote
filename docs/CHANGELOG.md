@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.2] - 2026-10-02
+
+### Fixed
+
+- Fixed NULL pointer reboot when RELOAD rescanned a previously loaded remote.
+- Layout Editor now selects status and screen elements as editable layout objects.
+- 1×1 elements can reflow/swap with different-size elements such as 1×2 or 2×1 where a valid placement exists.
+
+### Added
+
+- REPLACE tool for changing the selected element preset/size.
+- Region replacement when adding a large element and no contiguous free rectangle exists.
+- Adding a 3×3 D-pad can replace the occupied 3×3 region instead of requiring manual deletion of surrounding 1×1 controls.
+
+
 ## [0.4.1] - 2026-10-02
 
 ### Fixed

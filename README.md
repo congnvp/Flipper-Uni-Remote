@@ -2,7 +2,7 @@
 
 A data-driven universal-remote FAP for Flipper Zero. Remote layout, signal bindings, icon IDs and action sequences live in editable text files on the SD card, while the engine stays transport-agnostic.
 
-Current development baseline: **v0.4.0**.
+Current development baseline: **v0.4.2**.
 
 ## Runtime model
 
@@ -32,7 +32,7 @@ A remote package lives at:
 - Single-signal binding: `sig:<signal-name>`.
 - Sequence binding: `act:<action-id>`.
 - Sequence steps support per-step delay.
-- On-device Layout Editor with Move, Add, Remove and Template.
+- On-device Layout Editor with Move, Add, Replace, Remove and Template.
 - Element library: button 1×1/1×2, H-step, V-step, D-pad, Status, Screen 3×2/3×3.
 - Layout templates: TV Basic, TV D-pad, Media and AC Basic.
 - Icon library with short stable IDs such as `pwr`, `mut`, `play`, `home`, `fan`, `cool`, `hdmi`.
@@ -151,3 +151,12 @@ Semantic Versioning: `vMAJOR.MINOR.PATCH`.
 ## License
 
 MIT.
+
+
+## v0.4.2 layout behavior
+
+- RELOAD clears stale UI/controller pointers before rescanning, then reloads the active remote only when needed.
+- Layout Editor navigation includes status and screen elements, not only runtime-focusable controls.
+- Move uses geometric reflow: different sizes such as 1×1 and 1×2 can exchange regions when a valid placement exists.
+- ADD first uses a free rectangle. If no rectangle exists, large presets use their preferred region and replace overlapping elements; adding a 3×3 D-pad therefore does not require manually deleting surrounding 1×1 buttons.
+- REPLACE changes the selected element to another preset. Same-type replacement preserves mappings/labels while allowing size changes such as screen 3×2 ↔ 3×3.

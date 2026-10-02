@@ -624,6 +624,109 @@ static bool rect_free(
     return true;
 }
 
+static bool find_nearest_free_position(
+    const UniRemote* remote,
+    size_t ignore,
+    uint8_t w,
+    uint8_t h,
+    uint8_t preferred_x,
+    uint8_t preferred_y,
+    uint8_t* out_x,
+    uint8_t* out_y) {
+    bool found = false;
+    uint16_t best_score = UINT16_MAX;
+
+    for(uint8_t y = 0; y + h <= 6; y++) {
+        for(uint8_t x = 0; x + w <= 3; x++) {
+            if(!rect_free(remote, ignore, x, y, w, h)) continue;
+            const uint16_t dx = x > preferred_x ? x - preferred_x : preferred_x - x;
+            const uint16_t dy = y > preferred_y ? y - preferred_y : preferred_y - y;
+            const uint16_t score = (uint16_t)(dx + dy);
+            if(!found || score < best_score) {
+                found = true;
+                best_score = score;
+                *out_x = x;
+                *out_y = y;
+            }
+        }
+    }
+    return found;
+}
+
+static void preferred_position(
+    const UniElementPreset* preset,
+    uint8_t* x,
+    uint8_t* y) {
+    *x = 0;
+    *y = 0;
+    if(!preset) return;
+
+    switch(preset->type) {
+    case UniElementStatus:
+        *x = 0;
+        *y = 0;
+        break;
+    case UniElementScreen:
+        *x = 0;
+        *y = 1;
+        break;
+    case UniElementDpad:
+        *x = 0;
+        *y = 3;
+        break;
+    case UniElementHStep:
+        *x = 0;
+        *y = 3;
+        break;
+    case UniElementVStep:
+        *x = 0;
+        *y = preset->h <= 2 ? 4 : 0;
+        break;
+    case UniElementButton:
+        *x = preset->w == 1 ? 1 : 0;
+        *y = preset->h == 1 ? 5 : 4;
+        break;
+    }
+    if(*x + preset->w > 3) *x = 3 - preset->w;
+    if(*y + preset->h > 6) *y = 6 - preset->h;
+}
+
+static void remove_element_in_memory(UniRemote* remote, size_t index) {
+    if(!remote || index >= remote->element_count) return;
+    for(size_t i = index; i + 1 < remote->element_count; i++) {
+        remote->elements[i] = remote->elements[i + 1];
+    }
+    remote->element_count--;
+    memset(&remote->elements[remote->element_count], 0, sizeof(UniElement));
+}
+
+static void remove_overlaps(
+    UniRemote* remote,
+    size_t* protected_index,
+    uint8_t x,
+    uint8_t y,
+    uint8_t w,
+    uint8_t h) {
+    if(!remote) return;
+
+    size_t i = 0;
+    while(i < remote->element_count) {
+        if(protected_index && i == *protected_index) {
+            i++;
+            continue;
+        }
+
+        const UniElement* e = &remote->elements[i];
+        if(!rects_overlap(x, y, w, h, e->x, e->y, e->w, e->h)) {
+            i++;
+            continue;
+        }
+
+        remove_element_in_memory(remote, i);
+        if(protected_index && i < *protected_index) (*protected_index)--;
+    }
+}
+
 bool uni_remote_store_move_element(
     UniRemoteStore* store,
     size_t remote_index,
@@ -639,31 +742,71 @@ bool uni_remote_store_move_element(
     const int ny = (int)moving->y + dy;
     if(nx < 0 || ny < 0 || nx + moving->w > 3 || ny + moving->h > 6) return false;
 
-    size_t collision = UNI_MAX_ELEMENTS;
-    for(size_t i = 0; i < remote->element_count; i++) {
-        if(i == element_index) continue;
-        const UniElement* other = &remote->elements[i];
-        if(rects_overlap((uint8_t)nx, (uint8_t)ny, moving->w, moving->h,
-                         other->x, other->y, other->w, other->h)) {
-            if(collision != UNI_MAX_ELEMENTS) return false;
-            collision = i;
+    uint8_t old_x[UNI_MAX_ELEMENTS] = {0};
+    uint8_t old_y[UNI_MAX_ELEMENTS] = {0};
+    bool collided[UNI_MAX_ELEMENTS] = {false};
+    const size_t count = remote->element_count;
+
+    for(size_t i = 0; i < count; i++) {
+        old_x[i] = remote->elements[i].x;
+        old_y[i] = remote->elements[i].y;
+        if(i != element_index &&
+           rects_overlap(
+               (uint8_t)nx,
+               (uint8_t)ny,
+               moving->w,
+               moving->h,
+               remote->elements[i].x,
+               remote->elements[i].y,
+               remote->elements[i].w,
+               remote->elements[i].h)) {
+            collided[i] = true;
         }
     }
 
-    const uint8_t ox = moving->x;
-    const uint8_t oy = moving->y;
-    if(collision != UNI_MAX_ELEMENTS) {
-        UniElement* other = &remote->elements[collision];
-        if(other->x != (uint8_t)nx || other->y != (uint8_t)ny ||
-           other->w != moving->w || other->h != moving->h) {
-            return false;
-        }
-        other->x = ox;
-        other->y = oy;
-    }
+    const uint8_t preferred_x = moving->x;
+    const uint8_t preferred_y = moving->y;
     moving->x = (uint8_t)nx;
     moving->y = (uint8_t)ny;
-    return uni_remote_store_save(store, remote_index);
+
+    /*
+     * Reflow collided elements into the nearest valid free rectangle, preferring
+     * the area vacated by the moving element. This allows 1x1 <-> 1x2/2x1
+     * exchanges and region swaps without requiring equal dimensions.
+     */
+    for(size_t i = 0; i < count; i++) {
+        if(!collided[i]) continue;
+
+        UniElement* displaced = &remote->elements[i];
+        uint8_t rx = 0;
+        uint8_t ry = 0;
+        if(!find_nearest_free_position(
+               remote,
+               i,
+               displaced->w,
+               displaced->h,
+               preferred_x,
+               preferred_y,
+               &rx,
+               &ry)) {
+            for(size_t j = 0; j < count; j++) {
+                remote->elements[j].x = old_x[j];
+                remote->elements[j].y = old_y[j];
+            }
+            return false;
+        }
+        displaced->x = rx;
+        displaced->y = ry;
+    }
+
+    if(!uni_remote_store_save(store, remote_index)) {
+        for(size_t j = 0; j < count; j++) {
+            remote->elements[j].x = old_x[j];
+            remote->elements[j].y = old_y[j];
+        }
+        return false;
+    }
+    return true;
 }
 
 static bool find_free_position(
@@ -684,6 +827,23 @@ static bool find_free_position(
     return false;
 }
 
+static void init_from_preset(
+    UniElement* element,
+    const UniElementPreset* preset,
+    const char* id,
+    uint8_t x,
+    uint8_t y) {
+    memset(element, 0, sizeof(UniElement));
+    snprintf(element->id, sizeof(element->id), "%s", id ? id : preset->id);
+    element->type = preset->type;
+    element->x = x;
+    element->y = y;
+    element->w = preset->w;
+    element->h = preset->h;
+    snprintf(element->label, sizeof(element->label), "%s", preset->label);
+    snprintf(element->icon, sizeof(element->icon), "%s", preset->icon);
+}
+
 bool uni_remote_store_add_element(
     UniRemoteStore* store,
     size_t remote_index,
@@ -692,29 +852,75 @@ bool uni_remote_store_add_element(
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     const UniElementPreset* preset = uni_element_preset_get(preset_index);
-    if(!remote || !preset || remote->element_count >= UNI_MAX_ELEMENTS) return false;
+    if(!remote || !preset) return false;
 
-    uint8_t x = 0, y = 0;
-    if(!find_free_position(remote, preset->w, preset->h, &x, &y)) return false;
+    uint8_t x = 0;
+    uint8_t y = 0;
+    if(!find_free_position(remote, preset->w, preset->h, &x, &y)) {
+        /*
+         * No contiguous free rectangle: ADD becomes a deliberate region replace.
+         * Large elements such as a 3x3 D-pad can therefore replace a cluster of
+         * 1x1 buttons without manually deleting each button first.
+         */
+        preferred_position(preset, &x, &y);
+        remove_overlaps(remote, NULL, x, y, preset->w, preset->h);
+    }
 
+    if(remote->element_count >= UNI_MAX_ELEMENTS) return false;
     const size_t index = remote->element_count++;
     UniElement* e = &remote->elements[index];
-    memset(e, 0, sizeof(UniElement));
-    snprintf(e->id, sizeof(e->id), "%.18s%lu", preset->id, (unsigned long)index);
-    e->type = preset->type;
-    e->x = x;
-    e->y = y;
-    e->w = preset->w;
-    e->h = preset->h;
-    snprintf(e->label, sizeof(e->label), "%s", preset->label);
-    snprintf(e->icon, sizeof(e->icon), "%s", preset->icon);
+    char id[UNI_ID_MAX];
+    snprintf(id, sizeof(id), "%.18s%lu", preset->id, (unsigned long)index);
+    init_from_preset(e, preset, id, x, y);
 
     if(!uni_remote_store_save(store, remote_index)) {
         remote->element_count--;
+        memset(&remote->elements[remote->element_count], 0, sizeof(UniElement));
         return false;
     }
     if(new_index) *new_index = index;
     return true;
+}
+
+bool uni_remote_store_replace_element(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    size_t preset_index,
+    size_t* result_index) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    const UniElementPreset* preset = uni_element_preset_get(preset_index);
+    if(!remote || !preset || element_index >= remote->element_count) return false;
+
+    const UniElement old = remote->elements[element_index];
+    uint8_t x = old.x;
+    uint8_t y = old.y;
+    if(x + preset->w > 3) x = 3 - preset->w;
+    if(y + preset->h > 6) y = 6 - preset->h;
+
+    size_t protected_index = element_index;
+    remove_overlaps(remote, &protected_index, x, y, preset->w, preset->h);
+    element_index = protected_index;
+
+    if(preset->type == old.type) {
+        remote->elements[element_index] = old;
+        remote->elements[element_index].x = x;
+        remote->elements[element_index].y = y;
+        remote->elements[element_index].w = preset->w;
+        remote->elements[element_index].h = preset->h;
+    } else {
+        init_from_preset(
+            &remote->elements[element_index],
+            preset,
+            old.id,
+            x,
+            y);
+    }
+
+    const bool saved = uni_remote_store_save(store, remote_index);
+    if(saved && result_index) *result_index = element_index;
+    return saved;
 }
 
 bool uni_remote_store_remove_element(
