@@ -53,6 +53,7 @@ typedef struct {
     UniKey dpad_hold_key;
 
     bool tx_flash;
+    bool button_pressed;
     bool tx_ok;
     char last_signal[UNI_LAST_SIGNAL_MAX];
 
