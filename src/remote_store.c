@@ -564,12 +564,29 @@ bool uni_remote_store_load_details(UniRemoteStore* store, size_t remote_index) {
         if(!ff_read_u32(ff, "ElementCount", &element_count, true)) break;
         if(element_count > UNI_MAX_ELEMENTS) break;
 
+        bool legacy_status[UNI_MAX_PAGES] = {false};
         for(uint32_t i = 0; i < element_count; i++) {
             if(!load_element(ff, i, &elements[i])) goto done_details;
+            if(elements[i].type == UniElementStatus && elements[i].page < UNI_MAX_PAGES) {
+                legacy_status[elements[i].page] = true;
+            }
+        }
+
+        /*
+         * v0.5 owns the 8px status bar outside the 3x6 control grid.
+         * Migrate old status elements in RAM and shift that page up one row.
+         * The next editor save writes the clean v0.5 layout back to disk.
+         */
+        size_t write_index = 0;
+        for(uint32_t i = 0; i < element_count; i++) {
+            UniElement e = elements[i];
+            if(e.type == UniElementStatus) continue;
+            if(e.page < UNI_MAX_PAGES && legacy_status[e.page] && e.y > 0U) e.y--;
+            elements[write_index++] = e;
         }
 
         remote->elements = elements;
-        remote->element_count = element_count;
+        remote->element_count = write_index;
         remote->elements_loaded = true;
         elements = NULL;
         ok = true;
@@ -883,14 +900,17 @@ bool uni_remote_store_add_element(
     UniRemoteStore* store,
     size_t remote_index,
     size_t preset_index,
+    uint8_t page,
     size_t* new_index) {
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     const UniElementPreset* preset = uni_element_preset_get(preset_index);
     if(!remote || !preset) return false;
+    if(page >= (remote->page_count ? remote->page_count : 1U)) return false;
 
     UniElement candidate = {0};
     candidate.type = preset->type;
+    candidate.page = page;
     candidate.w = preset->w;
     candidate.h = preset->h;
 
@@ -912,6 +932,7 @@ bool uni_remote_store_add_element(
     char id[UNI_ID_MAX];
     snprintf(id, sizeof(id), "%.18s%lu", preset->id, (unsigned long)index);
     init_from_preset(e, preset, id, x, y);
+    e->page = page;
 
     if(!uni_remote_store_save(store, remote_index)) {
         remote->element_count--;
@@ -961,6 +982,7 @@ bool uni_remote_store_replace_element(
             old.id,
             x,
             y);
+        remote->elements[element_index].page = old.page;
     }
 
     const bool saved = uni_remote_store_save(store, remote_index);
