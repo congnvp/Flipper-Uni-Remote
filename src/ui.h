@@ -36,6 +36,7 @@ typedef enum {
 typedef enum {
     UniPickSignal,
     UniPickSequence,
+    UniPickState,
 } UniPickerKind;
 
 typedef struct {
