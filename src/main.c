@@ -118,9 +118,11 @@ static void open_layout_editor(UniApp* app) {
     load_actions_for_selected(app);
     uni_controller_reset(&app->controller, app->ui.remote);
     app->controller.dpad_captured = false;
-    app->ui.layout_element = app->controller.focus_index;
-    if(app->ui.layout_element >= app->ui.remote->element_count) app->ui.layout_element = 0;
+
+    /* Layout editing includes display-only elements such as status/screen. */
+    app->ui.layout_element = app->ui.remote->element_count ? 0 : 0;
     app->ui.layout_moving = false;
+    app->ui.layout_replace_mode = false;
     app->ui.page = UniUiLayoutEditor;
 }
 
@@ -129,11 +131,35 @@ static void reload_remotes(UniApp* app) {
     const UniRemote* current = selected_remote(app);
     if(current) snprintf(keep_id, sizeof(keep_id), "%s", current->id);
 
-    if(uni_remote_store_reload(&app->store)) {
-        app->ui.selected_remote =
-            keep_id[0] ? uni_remote_store_find_id(&app->store, keep_id) : 0;
-        refresh_remote_pointer(app);
-        if(app->ui.remote) uni_controller_reset(&app->controller, app->ui.remote);
+    const bool restore_remote = app->menu_return_page == UniUiRemote;
+
+    /*
+     * scan_remotes() frees the currently loaded element array. Clear every
+     * UI/controller reference before scanning so the draw callback can never
+     * dereference an unloaded layout.
+     */
+    app->ui.remote = NULL;
+    app->ui.layout_element = 0;
+    memset(&app->controller, 0, sizeof(app->controller));
+    app->controller.dpad_hold_key = UniKeyUnknown;
+    app->controller.pending_nav_key = UniKeyUnknown;
+
+    if(!uni_remote_store_reload(&app->store)) {
+        app->menu_return_page = UniUiHome;
+        return;
+    }
+
+    app->ui.selected_remote =
+        keep_id[0] ? uni_remote_store_find_id(&app->store, keep_id) : 0;
+
+    if(restore_remote) {
+        if(uni_remote_store_load_details(&app->store, app->ui.selected_remote)) {
+            app->ui.remote = selected_remote(app);
+            load_actions_for_selected(app);
+            if(app->ui.remote) uni_controller_reset(&app->controller, app->ui.remote);
+        } else {
+            app->menu_return_page = UniUiHome;
+        }
     }
 }
 
@@ -359,13 +385,60 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
 }
 
 static void layout_select(UniApp* app, UniKey key) {
-    if(!app->ui.remote || app->ui.remote->element_count == 0) return;
-    app->controller.focus_index = app->ui.layout_element;
-    app->controller.dpad_captured = false;
-    if(uni_controller_move_focus(&app->controller, app->ui.remote, key)) {
-        app->controller.dpad_captured = false;
-        app->ui.layout_element = app->controller.focus_index;
+    if(!app->ui.remote || !app->ui.remote->elements ||
+       app->ui.remote->element_count == 0 ||
+       app->ui.layout_element >= app->ui.remote->element_count) {
+        return;
     }
+
+    const UniElement* current = &app->ui.remote->elements[app->ui.layout_element];
+    const int current_cx2 = 2 * current->x + current->w;
+    const int current_cy2 = 2 * current->y + current->h;
+    int best_score = 10000;
+    size_t best_index = app->ui.layout_element;
+
+    /*
+     * Editor navigation deliberately includes ALL elements. Runtime focus still
+     * ignores status/screen, but Layout Editor must be able to move/replace/remove them.
+     */
+    for(size_t i = 0; i < app->ui.remote->element_count; i++) {
+        if(i == app->ui.layout_element) continue;
+        const UniElement* candidate = &app->ui.remote->elements[i];
+        const int candidate_cx2 = 2 * candidate->x + candidate->w;
+        const int candidate_cy2 = 2 * candidate->y + candidate->h;
+        bool valid = false;
+        int primary = 0;
+        int secondary = 0;
+
+        if(key == UniKeyRight && candidate->x >= current->x + current->w) {
+            valid = true;
+            primary = candidate->x - (current->x + current->w);
+            secondary = abs(candidate_cy2 - current_cy2);
+        } else if(key == UniKeyLeft &&
+                  candidate->x + candidate->w <= current->x) {
+            valid = true;
+            primary = current->x - (candidate->x + candidate->w);
+            secondary = abs(candidate_cy2 - current_cy2);
+        } else if(key == UniKeyDown && candidate->y >= current->y + current->h) {
+            valid = true;
+            primary = candidate->y - (current->y + current->h);
+            secondary = abs(candidate_cx2 - current_cx2);
+        } else if(key == UniKeyUp &&
+                  candidate->y + candidate->h <= current->y) {
+            valid = true;
+            primary = current->y - (candidate->y + candidate->h);
+            secondary = abs(candidate_cx2 - current_cx2);
+        }
+
+        if(!valid) continue;
+        const int score = primary * 100 + secondary;
+        if(score < best_score) {
+            best_score = score;
+            best_index = i;
+        }
+    }
+
+    app->ui.layout_element = best_index;
 }
 
 static void layout_move(UniApp* app, UniKey key) {
@@ -412,7 +485,7 @@ static void handle_layout_tools(UniApp* app, const InputEvent* event, UniKey key
     }
     if(event->type != InputTypeShort) return;
     if(key == UniKeyUp || key == UniKeyDown) {
-        menu_move(&app->ui, 6, key);
+        menu_move(&app->ui, 7, key);
         return;
     }
     if(key != UniKeyOk) return;
@@ -421,11 +494,19 @@ static void handle_layout_tools(UniApp* app, const InputEvent* event, UniKey key
     if(!remote) return;
 
     switch(app->ui.menu_index) {
-    case 0:
+    case 0: /* ADD */
+        app->ui.layout_replace_mode = false;
         app->ui.page = UniUiAddElement;
         app->ui.menu_index = 0;
         break;
-    case 1:
+    case 1: /* REPLACE selected element */
+        if(remote->element_count && app->ui.layout_element < remote->element_count) {
+            app->ui.layout_replace_mode = true;
+            app->ui.page = UniUiAddElement;
+            app->ui.menu_index = 0;
+        }
+        break;
+    case 2: /* REMOVE */
         if(remote->element_count && app->ui.layout_element < remote->element_count) {
             if(uni_remote_store_remove_element(
                    &app->store,
@@ -443,7 +524,7 @@ static void handle_layout_tools(UniApp* app, const InputEvent* event, UniKey key
         }
         app->ui.page = UniUiLayoutEditor;
         break;
-    case 2:
+    case 3: /* MAP */
         if(remote->element_count && app->ui.layout_element < remote->element_count &&
            uni_editor_binding_count(&remote->elements[app->ui.layout_element]) > 0) {
             load_actions_for_selected(app);
@@ -452,18 +533,18 @@ static void handle_layout_tools(UniApp* app, const InputEvent* event, UniKey key
             app->ui.menu_index = 0;
         }
         break;
-    case 3:
+    case 4: /* ICON */
         if(remote->element_count && app->ui.layout_element < remote->element_count &&
            uni_editor_icon_count(&remote->elements[app->ui.layout_element]) > 0) {
             app->ui.page = UniUiIconField;
             app->ui.menu_index = 0;
         }
         break;
-    case 4:
+    case 5: /* TEMPLATE */
         app->ui.page = UniUiLayoutPreset;
         app->ui.menu_index = 0;
         break;
-    case 5:
+    case 6: /* DONE */
         app->ui.page = UniUiMenu;
         app->ui.menu_index = 0;
         break;
@@ -474,7 +555,7 @@ static void handle_add_element(UniApp* app, const InputEvent* event, UniKey key)
     const size_t count = uni_element_preset_count();
     if(key == UniKeyBack && event->type == InputTypeShort) {
         app->ui.page = UniUiLayoutTools;
-        app->ui.menu_index = 0;
+        app->ui.menu_index = app->ui.layout_replace_mode ? 1 : 0;
         return;
     }
     if(event->type != InputTypeShort) return;
@@ -482,18 +563,32 @@ static void handle_add_element(UniApp* app, const InputEvent* event, UniKey key)
         menu_move(&app->ui, count, key);
         return;
     }
-    if(key == UniKeyOk) {
-        size_t index = 0;
-        if(uni_remote_store_add_element(
-               &app->store,
-               app->ui.selected_remote,
-               app->ui.menu_index,
-               &index)) {
-            refresh_remote_pointer(app);
-            app->ui.layout_element = index;
-            app->ui.page = UniUiLayoutEditor;
-            app->ui.layout_moving = false;
-        }
+    if(key != UniKeyOk) return;
+
+    size_t index = app->ui.layout_element;
+    bool ok = false;
+
+    if(app->ui.layout_replace_mode) {
+        ok = uni_remote_store_replace_element(
+            &app->store,
+            app->ui.selected_remote,
+            app->ui.layout_element,
+            app->ui.menu_index,
+            &index);
+    } else {
+        ok = uni_remote_store_add_element(
+            &app->store,
+            app->ui.selected_remote,
+            app->ui.menu_index,
+            &index);
+    }
+
+    if(ok) {
+        refresh_remote_pointer(app);
+        app->ui.layout_element = index;
+        app->ui.page = UniUiLayoutEditor;
+        app->ui.layout_moving = false;
+        app->ui.layout_replace_mode = false;
     }
 }
 
@@ -517,7 +612,7 @@ static void handle_layout_preset(UniApp* app, const InputEvent* event, UniKey ke
         refresh_remote_pointer(app);
         uni_controller_reset(&app->controller, app->ui.remote);
         app->controller.dpad_captured = false;
-        app->ui.layout_element = app->controller.focus_index;
+        app->ui.layout_element = app->ui.remote && app->ui.remote->element_count ? 0 : 0;
         app->ui.page = UniUiLayoutEditor;
     }
 }
