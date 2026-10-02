@@ -3,6 +3,7 @@
 static const UniElementPreset element_presets[] = {
     {"btn11", "BUTTON 1X1", UniElementButton, 1, 1, "BTN", ""},
     {"btn12", "BUTTON 1X2", UniElementButton, 1, 2, "BTN", ""},
+    {"btn21", "BUTTON 2X1", UniElementButton, 2, 1, "BTN", ""},
     {"h31", "LEFT RIGHT", UniElementHStep, 3, 1, "NAV", ""},
     {"v12", "UP DOWN", UniElementVStep, 1, 2, "VAL", ""},
     {"d33", "D-PAD", UniElementDpad, 3, 3, "", ""},

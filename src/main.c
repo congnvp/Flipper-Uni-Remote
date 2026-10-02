@@ -391,48 +391,27 @@ static void layout_select(UniApp* app, UniKey key) {
         return;
     }
 
+    int8_t dx = 0;
+    int8_t dy = 0;
+    if(key == UniKeyLeft) dx = -1;
+    else if(key == UniKeyRight) dx = 1;
+    else if(key == UniKeyUp) dy = -1;
+    else if(key == UniKeyDown) dy = 1;
+    else return;
+
     const UniElement* current = &app->ui.remote->elements[app->ui.layout_element];
-    const int current_cx2 = 2 * current->x + current->w;
-    const int current_cy2 = 2 * current->y + current->h;
     int best_score = 10000;
     size_t best_index = app->ui.layout_element;
 
     /*
-     * Editor navigation deliberately includes ALL elements. Runtime focus still
-     * ignores status/screen, but Layout Editor must be able to move/replace/remove them.
+     * Layout Editor navigates all elements by occupied cells, not bounding
+     * rectangles. This makes the four D-pad corner slots independently selectable.
      */
     for(size_t i = 0; i < app->ui.remote->element_count; i++) {
         if(i == app->ui.layout_element) continue;
         const UniElement* candidate = &app->ui.remote->elements[i];
-        const int candidate_cx2 = 2 * candidate->x + candidate->w;
-        const int candidate_cy2 = 2 * candidate->y + candidate->h;
-        bool valid = false;
-        int primary = 0;
-        int secondary = 0;
-
-        if(key == UniKeyRight && candidate->x >= current->x + current->w) {
-            valid = true;
-            primary = candidate->x - (current->x + current->w);
-            secondary = abs(candidate_cy2 - current_cy2);
-        } else if(key == UniKeyLeft &&
-                  candidate->x + candidate->w <= current->x) {
-            valid = true;
-            primary = current->x - (candidate->x + candidate->w);
-            secondary = abs(candidate_cy2 - current_cy2);
-        } else if(key == UniKeyDown && candidate->y >= current->y + current->h) {
-            valid = true;
-            primary = candidate->y - (current->y + current->h);
-            secondary = abs(candidate_cx2 - current_cx2);
-        } else if(key == UniKeyUp &&
-                  candidate->y + candidate->h <= current->y) {
-            valid = true;
-            primary = current->y - (candidate->y + candidate->h);
-            secondary = abs(candidate_cx2 - current_cx2);
-        }
-
-        if(!valid) continue;
-        const int score = primary * 100 + secondary;
-        if(score < best_score) {
+        const int score = uni_element_direction_score(current, candidate, dx, dy);
+        if(score >= 0 && score < best_score) {
             best_score = score;
             best_index = i;
         }

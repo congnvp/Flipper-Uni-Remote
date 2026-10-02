@@ -74,9 +74,14 @@ bool uni_controller_move_focus(
         return false;
     }
 
+    int8_t dx = 0;
+    int8_t dy = 0;
+    if(direction == UniKeyLeft) dx = -1;
+    else if(direction == UniKeyRight) dx = 1;
+    else if(direction == UniKeyUp) dy = -1;
+    else if(direction == UniKeyDown) dy = 1;
+
     const UniElement* current = &remote->elements[controller->focus_index];
-    const int current_cx2 = 2 * current->x + current->w;
-    const int current_cy2 = 2 * current->y + current->h;
     int best_score = INT_MAX;
     size_t best_index = controller->focus_index;
 
@@ -85,35 +90,8 @@ bool uni_controller_move_focus(
         const UniElement* candidate = &remote->elements[i];
         if(!uni_element_focusable(candidate)) continue;
 
-        bool valid = false;
-        int primary = 0;
-        int secondary = 0;
-        const int candidate_cx2 = 2 * candidate->x + candidate->w;
-        const int candidate_cy2 = 2 * candidate->y + candidate->h;
-
-        if(direction == UniKeyRight && candidate->x >= current->x + current->w) {
-            valid = true;
-            primary = candidate->x - (current->x + current->w);
-            secondary = abs(candidate_cy2 - current_cy2);
-        } else if(direction == UniKeyLeft &&
-                  candidate->x + candidate->w <= current->x) {
-            valid = true;
-            primary = current->x - (candidate->x + candidate->w);
-            secondary = abs(candidate_cy2 - current_cy2);
-        } else if(direction == UniKeyDown && candidate->y >= current->y + current->h) {
-            valid = true;
-            primary = candidate->y - (current->y + current->h);
-            secondary = abs(candidate_cx2 - current_cx2);
-        } else if(direction == UniKeyUp &&
-                  candidate->y + candidate->h <= current->y) {
-            valid = true;
-            primary = current->y - (candidate->y + candidate->h);
-            secondary = abs(candidate_cx2 - current_cx2);
-        }
-
-        if(!valid) continue;
-        const int score = primary * 100 + secondary;
-        if(score < best_score) {
+        const int score = uni_element_direction_score(current, candidate, dx, dy);
+        if(score >= 0 && score < best_score) {
             best_score = score;
             best_index = i;
         }
