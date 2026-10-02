@@ -4,6 +4,8 @@
 
 Hold Flipper Zero clockwise in portrait orientation: screen above, controls below.
 
+Portrait hard-key mapping is positional: physical Left→logical Up, Right→Down, Down→Left, Up→Right. This keeps menu and focus movement aligned with what the user sees after rotating the device.
+
 Logical resolution is 64×128. The renderer rotates logical pixels onto the native 128×64 LCD.
 
 ## Base grid
