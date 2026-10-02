@@ -157,10 +157,32 @@ void uni_action_engine_init(UniActionEngine* engine, Storage* storage, UniIrTran
     memset(engine, 0, sizeof(UniActionEngine));
     engine->storage = storage;
     engine->ir = ir;
+    engine->stateful = storage ? uni_stateful_ir_alloc(storage) : NULL;
+}
+
+void uni_action_engine_deinit(UniActionEngine* engine) {
+    if(!engine) return;
+    if(engine->stateful) {
+        uni_stateful_ir_free(engine->stateful);
+        engine->stateful = NULL;
+    }
 }
 
 bool uni_action_engine_load(UniActionEngine* engine, const UniRemote* remote) {
     if(!engine || !engine->storage || !remote) return false;
+    memset(&engine->signals, 0, sizeof(engine->signals));
+    memset(&engine->actions, 0, sizeof(engine->actions));
+
+    if(engine->stateful) uni_stateful_ir_unload(engine->stateful);
+
+    if(remote->transport == UniTransportStatefulIr) {
+        return engine->stateful && uni_stateful_ir_load(engine->stateful, remote);
+    }
+
+    if(remote->transport == UniTransportBluetoothHid) {
+        return true;
+    }
+
     load_signal_names(engine->storage, remote->signal_path, &engine->signals);
     return load_actions(engine->storage, remote->action_path, &engine->actions);
 }
@@ -179,7 +201,16 @@ bool uni_action_engine_execute(
     const char* binding,
     bool repeat) {
     if(!engine || !remote || !binding || !binding[0]) return false;
-    if(remote->transport != UniTransportInfrared) return false;
+
+    if(remote->transport == UniTransportStatefulIr) {
+        const char* action = strncmp(binding, "st:", 3) == 0 ? binding + 3 : binding;
+        return engine->stateful &&
+               uni_stateful_ir_execute(engine->stateful, action, repeat);
+    }
+
+    if(remote->transport == UniTransportBluetoothHid) {
+        return false;
+    }
 
     const char* signal_name = binding;
     if(strncmp(binding, "sig:", 4) == 0) {
@@ -207,4 +238,25 @@ bool uni_action_engine_execute(
     }
 
     return uni_ir_transport_send(engine->ir, remote->signal_path, signal_name, repeat);
+}
+
+size_t uni_action_engine_state_action_count(const UniActionEngine* engine) {
+    return engine && engine->stateful ?
+        uni_stateful_ir_action_count(engine->stateful) :
+        0;
+}
+
+const char* uni_action_engine_state_action_name(const UniActionEngine* engine, size_t index) {
+    return engine && engine->stateful ?
+        uni_stateful_ir_action_name(engine->stateful, index) :
+        NULL;
+}
+
+void uni_action_engine_status(const UniActionEngine* engine, char* out, size_t out_size) {
+    if(!out || out_size == 0) return;
+    if(engine && engine->stateful) {
+        uni_stateful_ir_status(engine->stateful, out, out_size);
+    } else {
+        out[0] = '\0';
+    }
 }
