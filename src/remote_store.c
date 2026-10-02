@@ -163,7 +163,11 @@ static void ensure_default_package(Storage* storage) {
         char path[UNI_PATH_MAX];
         snprintf(dir, sizeof(dir), UNI_REMOTES_DIR "/%s", ac_demos[d].folder);
         storage_common_mkdir(storage, dir);
-        snprintf(path, sizeof(path), "%s/remote.ur", dir);
+        snprintf(
+            path,
+            sizeof(path),
+            UNI_REMOTES_DIR "/%.120s/remote.ur",
+            ac_demos[d].folder);
         if(storage_file_exists(storage, path)) continue;
 
         char text[4096];
