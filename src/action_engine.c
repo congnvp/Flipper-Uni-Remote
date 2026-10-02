@@ -1,4 +1,5 @@
 #include "action_engine.h"
+#include "stateful_ir.h"
 
 #include <flipper_format/flipper_format.h>
 #include <furi.h>
@@ -179,6 +180,10 @@ bool uni_action_engine_execute(
     const char* binding,
     bool repeat) {
     if(!engine || !remote || !binding || !binding[0]) return false;
+
+    if(remote->transport == UniTransportStatefulIr) {
+        return uni_stateful_ir_execute(engine->storage, remote, binding, repeat);
+    }
     if(remote->transport != UniTransportInfrared) return false;
 
     const char* signal_name = binding;
