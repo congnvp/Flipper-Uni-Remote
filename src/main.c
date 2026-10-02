@@ -5,7 +5,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>\n#include "ui_icons.h"
+#include <string.h>
+#include "ui_icons.h"
 
 #define INPUT_QUEUE_SIZE 8
 #define HOME_PAGE_COUNT 4
@@ -443,8 +444,8 @@ static void draw_menu(Canvas* canvas, const char* title, const char* const* labe
 }
 
 static void draw_settings(Canvas* canvas, const App* app) {
-    static const char* labels[] = {"REMOTE MANAGER","FOLDER MANAGER","APP SETTINGS","DATA","ABOUT"};
-    draw_menu(canvas, "SETTINGS", labels, NULL, 5, app->menu_index);
+    static const char* labels[] = {"REMOTE MANAGER","FOLDER MANAGER","APP SETTINGS","DATA","ABOUT","ICON DEMO"};
+    draw_menu(canvas, "SETTINGS", labels, NULL, 6, app->menu_index);
 }
 
 static void draw_remote_manager(Canvas* canvas, const App* app) {
@@ -782,6 +783,7 @@ static void draw_callback(Canvas* canvas, void* context) {
     case ScreenConfirmDuplicate: draw_confirm(canvas, app, "DUPLICATE?"); break;
     case ScreenConfirmDelete: draw_confirm(canvas, app, "DELETE?"); break;
     case ScreenInfo: draw_info(canvas, app); break;
+    case ScreenIconDemo: draw_icon_demo(canvas, app); break;
     }
 }
 
@@ -952,6 +954,7 @@ static void handle_short(App* app, UiKey key) {
         case 2: app->screen = ScreenAppSettings; app->menu_index = 0; break;
         case 3: app->screen = ScreenData; app->menu_index = 0; break;
         case 4: app->screen = ScreenAbout; break;
+        case 5: app->screen = ScreenIconDemo; app->runtime_page = 0; app->grid_focus = 0; app->runtime_pressed = false; break;
         }
         return;
     }
