@@ -31,6 +31,7 @@ bool uni_remote_store_add_element(
     UniRemoteStore* store,
     size_t remote_index,
     size_t preset_index,
+    uint8_t page,
     size_t* new_index);
 bool uni_remote_store_replace_element(
     UniRemoteStore* store,
