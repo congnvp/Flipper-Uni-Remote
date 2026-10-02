@@ -94,6 +94,12 @@ static void open_remote(UniApp* app) {
     app->ui.last_signal[0] = '\0';
     app->ui.tx_ok = true;
     uni_controller_reset(&app->controller, app->ui.remote);
+    if(app->ui.remote->transport == UniTransportStatefulIr) {
+        uni_stateful_format_status(
+            &app->stateful,
+            app->ui.last_signal,
+            sizeof(app->ui.last_signal));
+    }
 }
 
 static void open_menu(UniApp* app, UniUiPage return_page) {
@@ -408,6 +414,14 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
     }
 }
 
+static size_t first_layout_element_on_page(const UniRemote* remote, uint8_t page) {
+    if(!remote) return 0;
+    for(size_t i = 0; i < remote->element_count; i++) {
+        if(remote->elements[i].page == page) return i;
+    }
+    return remote->element_count;
+}
+
 static void layout_select(UniApp* app, UniKey key) {
     if(!app->ui.remote || !app->ui.remote->elements ||
        app->ui.remote->element_count == 0 ||
@@ -424,20 +438,36 @@ static void layout_select(UniApp* app, UniKey key) {
     else return;
 
     const UniElement* current = &app->ui.remote->elements[app->ui.layout_element];
+    const uint8_t page = current->page;
     int best_score = 10000;
     size_t best_index = app->ui.layout_element;
 
-    /*
-     * Layout Editor navigates all elements by occupied cells, not bounding
-     * rectangles. This makes the four D-pad corner slots independently selectable.
-     */
     for(size_t i = 0; i < app->ui.remote->element_count; i++) {
         if(i == app->ui.layout_element) continue;
         const UniElement* candidate = &app->ui.remote->elements[i];
+        if(candidate->page != page) continue;
         const int score = uni_element_direction_score(current, candidate, dx, dy);
         if(score >= 0 && score < best_score) {
             best_score = score;
             best_index = i;
+        }
+    }
+
+    if(best_index == app->ui.layout_element &&
+       (key == UniKeyUp || key == UniKeyDown) &&
+       app->ui.remote->page_count > 1) {
+        int16_t next = (int16_t)page + (key == UniKeyDown ? 1 : -1);
+        while(next < 0) next += app->ui.remote->page_count;
+        while(next >= app->ui.remote->page_count) next -= app->ui.remote->page_count;
+        for(uint8_t tries = 0; tries < app->ui.remote->page_count; tries++) {
+            size_t candidate = first_layout_element_on_page(app->ui.remote, (uint8_t)next);
+            if(candidate < app->ui.remote->element_count) {
+                best_index = candidate;
+                break;
+            }
+            next += key == UniKeyDown ? 1 : -1;
+            while(next < 0) next += app->ui.remote->page_count;
+            while(next >= app->ui.remote->page_count) next -= app->ui.remote->page_count;
         }
     }
 
@@ -579,10 +609,17 @@ static void handle_add_element(UniApp* app, const InputEvent* event, UniKey key)
             app->ui.menu_index,
             &index);
     } else {
+        uint8_t page = 0;
+        const UniRemote* current = selected_remote(app);
+        if(current && current->element_count &&
+           app->ui.layout_element < current->element_count) {
+            page = current->elements[app->ui.layout_element].page;
+        }
         ok = uni_remote_store_add_element(
             &app->store,
             app->ui.selected_remote,
             app->ui.menu_index,
+            page,
             &index);
     }
 
