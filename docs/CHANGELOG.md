@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.4.0] - 2026-10-02
+
+### Added
+
+- Reusable Action Engine with direct signal and named sequence bindings.
+- `actions.ur` with per-step sequence delays.
+- On-device Layout Tools: Add, Remove, Map, Icon, Template.
+- Element preset library and full layout template library.
+- Central short-ID icon library for text-editable profiles.
+- On-device hard-key HOLD mapping using Signal/Sequence picker.
+- D-pad direction HOLD bindings and hold icons.
+- Double-OK D-pad ALT lock; ALT turns hold bindings into short-press actions.
+- Short Back exits D-pad capture and restores previous focus.
+
+### Changed
+
+- Remote edits now serialize the full `remote.ur` model.
+- Bindings use explicit `sig:` and `act:` prefixes while retaining plain-signal compatibility.
+- Long Back is a global system escape from all non-home pages.
+
+### Fixed
+
+- A D-pad long-direction action no longer emits the normal direction action first when a separate HOLD binding exists.
+
+
 ## [0.3.1] - 2026-10-02
 
 ### Fixed

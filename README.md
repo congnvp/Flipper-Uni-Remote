@@ -1,53 +1,86 @@
 # Flipper Uni Remote
 
-A data-driven universal-remote FAP for Flipper Zero, designed so humans and coding agents can extend remotes without recompiling protocol data into the application.
+A data-driven universal-remote FAP for Flipper Zero. Remote layout, signal bindings, icon IDs and action sequences live in editable text files on the SD card, while the engine stays transport-agnostic.
 
-Current development baseline: **v0.3.1**.
+Current development baseline: **v0.4.0**.
 
-## v0.2 architecture
-
-The core flow is:
+## Runtime model
 
 ```text
-Element -> semantic interaction -> signal/state action -> transport
-State   -> display elements
+Physical key
+  -> system-reserved keys
+  -> focus / captured element
+  -> binding (sig: / act:)
+  -> Action Engine
+  -> IR / future BLE / future stateful IR
 ```
 
-Global settings live at `/ext/apps_data/flipper_uni_remote/settings.ur`.
-
-A remote is a portable package on the SD card:
+A remote package lives at:
 
 ```text
 /ext/apps_data/flipper_uni_remote/remotes/<remote-id>/
-├── remote.ur      # layout, element bindings, per-remote settings
-├── signals.ir     # standard Flipper IR signals, parsed or raw
-└── state.urs      # reserved for local/stateful-device state
+├── remote.ur
+├── signals.ir
+├── actions.ur
+└── state.urs        # reserved for stateful devices
 ```
 
-Bluetooth bond keys are deliberately kept outside portable remote packages. `BluetoothProfile` is a stable slot/reference that will be used by the BLE transport layer.
+## v0.4 features
 
-## What works in v0.2
+- Multiple remote packages loaded from SD.
+- Standard Flipper `.ir` files, parsed or raw.
+- Single-signal binding: `sig:<signal-name>`.
+- Sequence binding: `act:<action-id>`.
+- Sequence steps support per-step delay.
+- On-device Layout Editor with Move, Add, Remove and Template.
+- Element library: button 1×1/1×2, H-step, V-step, D-pad, Status, Screen 3×2/3×3.
+- Layout templates: TV Basic, TV D-pad, Media and AC Basic.
+- Icon library with short stable IDs such as `pwr`, `mut`, `play`, `home`, `fan`, `cool`, `hdmi`.
+- On-device Map editor: Signal / Sequence / Clear.
+- Remote hard-key HOLD mapping uses the same Signal/Sequence picker.
+- D-pad NORMAL layer plus HOLD actions/icons.
+- Double OK toggles D-pad ALT layer. In ALT, a short direction press executes its HOLD binding.
+- Short Back exits D-pad capture and restores the previous focus.
+- Long Back is always a system escape and can never be remapped.
+- Global and per-remote settings remain persisted in Apps Data.
 
-- Official uFBT external-FAP build.
-- Portrait 64×128 logical UI mapped onto the physical 128×64 LCD.
-- Multiple remotes loaded by scanning Apps Data on the SD card.
-- Layout loaded from `remote.ur` using a 3×6 logical grid.
-- Standard `.ir` file is read by signal name at runtime. Parsed and raw signals stay in Flipper's native format.
-- `button`, `hstep`, `vstep`, `dpad`, `status`, and `screen` element types.
-- H-step captures Left/Right; Up/Down leaves the element.
-- V-step captures Up/Down; Left/Right leaves the element.
-- D-pad auto-captures directions and OK; **Long Back** releases it.
-- **Long Back is system-reserved and cannot be remapped.** Outside D-pad capture, Long Back leaves the remote; on the remote chooser it exits the FAP.
-- Global `settings.ur` with `RepeatEnabled` and `DefaultRemote`.
-- Per-remote `Order`, `RepeatEnabled`, `Transport`, and `BluetoothProfile` fields.
-- A demo remote package is created automatically on first run if no valid remote exists.
-- Spatial focus navigation uses the actual 3×6 element positions rather than file order.
-- On-device Menu via Short Back.
-- Global Settings: repeat, auto-open default remote, default remote.
-- Remote Settings: per-remote repeat, set default, Bluetooth profile display.
-- On-device Layout Editor with grid movement and same-size element swapping.
+## D-pad behavior
 
-Not yet implemented: IR learning/assignment UI, stateful AC decoders/encoders, BLE HID transport, Bluetooth identity switching, and full hardware-key remapping. The data schema is designed so these features do not require rewriting the renderer or IR files.
+Normal layer:
+
+```text
+UP/DOWN/LEFT/RIGHT  -> normal bindings
+hold direction      -> *_hold binding, if configured
+OK                   -> delayed up to 240 ms for double-tap detection
+double OK            -> toggle ALT
+```
+
+ALT layer displays the hold icons and maps a short direction press to the corresponding hold action. Double OK again returns to NORMAL.
+
+If a direction has a separate hold binding, the normal action is delayed until a short press is confirmed so a long press does not send both actions.
+
+## Editing on Flipper
+
+Short Back outside captured D-pad opens Menu.
+
+```text
+MENU
+├── GLOBAL
+├── REMOTE
+├── LAYOUT
+├── RELOAD
+└── BACK
+```
+
+Layout Editor:
+
+- OK: Select ↔ Move.
+- Short Back while not moving: Layout Tools.
+- Layout Tools: Add / Remove / Map / Icon / Template / Done.
+- Map: choose binding field, then Signal / Sequence / Clear.
+- Icon: choose the icon field then an ID from the icon library.
+
+Remote Settings includes KEYMAP for HOLD shortcuts. Directional hard-key HOLD mappings only apply when a focused element has not captured that direction.
 
 ## Build
 
@@ -57,67 +90,64 @@ ufbt update --channel release
 ufbt
 ```
 
-With a Flipper connected:
+With Flipper attached:
 
 ```bash
 ufbt launch
 ```
 
-## On-device controls
+## Profile editing
 
-- Short Back: open Menu (outside captured D-pad).
-- Long Back: reserved system escape; never remappable.
-- H-step: Left/Right operate; Up/Down leave the element.
-- V-step: Up/Down operate; Left/Right leave the element.
-- D-pad: captures directions/OK; Long Back releases capture.
-- Layout Editor: OK toggles Select/Move. While moving, directions move one grid cell; moving onto a same-size element swaps them.
-
-## Editing a remote without recompiling
-
-1. Run the app once so Apps Data is created.
-2. Copy or edit a remote directory under `/ext/apps_data/flipper_uni_remote/remotes/`.
-3. Put any standard Flipper `.ir` file in the remote directory.
-4. In `remote.ur`, map element bindings to the `name:` fields in that `.ir` file.
-5. Restart the FAP to reload packages.
-
-See `docs/REMOTE_PACKAGE.md` and `examples/living_tv/`.
-
-## Repository layout
+A single signal:
 
 ```text
-.
-├── application.fam
-├── VERSION
-├── src/
-│   ├── controller.*      # hard-key policy and focus capture
-│   ├── ir_transport.*    # signal-name -> .ir -> transmitter
-│   ├── remote.*          # data model
-│   ├── remote_store.*    # Apps Data scanner/parser
-│   ├── settings.*        # global settings
-│   ├── ui.*              # 3×6 data-driven renderer
-│   └── main.c            # orchestration only
-├── examples/
-├── docs/
-├── tools/
-└── .github/workflows/
+Element4Tap: sig:Power
 ```
+
+A named sequence:
+
+```text
+Element4Hold: act:movie
+```
+
+A button icon:
+
+```text
+Element4Icon: pwr
+```
+
+D-pad hold layer:
+
+```text
+Element5UpHold: sig:VolUp
+Element5UpHoldIcon: volp
+Element5LeftHold: sig:Rewind
+Element5LeftHoldIcon: rew
+Element5AltSticky: false
+```
+
+See:
+
+- `docs/REMOTE_PACKAGE.md`
+- `docs/ACTIONS.md`
+- `docs/ICON_LIBRARY.md`
+- `docs/UI_SYSTEM.md`
 
 ## Versioning
 
-Semantic Versioning is used: `vMAJOR.MINOR.PATCH`.
+Semantic Versioning: `vMAJOR.MINOR.PATCH`.
 
-- `VERSION` is the source of truth.
-- Git release tags use `v`, for example `v0.2.0`.
-- `application.fam` mirrors `MAJOR.MINOR` in `fap_version`.
+`VERSION` is the source of truth. `application.fam` mirrors MAJOR.MINOR.
 
-## Safety/invariants
+## Invariants
 
-- Long Back is always reserved as a system escape.
-- Device-specific signal bytes do not belong in UI/engine C code.
-- UI stores signal names, never decoded protocol payloads.
-- Bluetooth keys/secrets must never be placed in portable remote packages.
-- IR-only local state must not be presented as confirmed device state.
+- Long Back is never remappable.
+- Native LCD is 128×64; logical UI is 64×128 portrait.
+- Layout files store 3×6 grid geometry, not pixel coordinates.
+- IR protocol bytes stay in `.ir` files, not engine/UI code.
+- Bluetooth bond secrets never belong in portable remote packages.
+- Stateful IR local state must not be presented as confirmed device state.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT.

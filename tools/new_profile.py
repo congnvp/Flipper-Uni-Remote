@@ -12,8 +12,7 @@ if not re.fullmatch(r"[a-z][a-z0-9_]*", remote_id):
     raise SystemExit("remote_id must match [a-z][a-z0-9_]*")
 if not re.fullmatch(r"[A-Z0-9]{1,3}", short_name):
     raise SystemExit("short name must be 1-3 ASCII letters/digits")
-if "
-" in display_name or "" in display_name:
+if "\n" in display_name or "\r" in display_name:
     raise SystemExit("display name must be one line")
 
 root = Path(__file__).resolve().parents[1]
@@ -23,7 +22,7 @@ if out.exists():
 out.mkdir(parents=True)
 
 (out / "remote.ur").write_text(
-f'''Filetype: Flipper Uni Remote
+f"""Filetype: Flipper Uni Remote
 Version: 1
 Id: {remote_id}
 Name: {display_name}
@@ -32,7 +31,13 @@ Transport: IR
 Order: 100
 RepeatEnabled: true
 SignalFile: signals.ir
+ActionFile: actions.ur
 BluetoothProfile: {remote_id}
+HardUpHold:
+HardDownHold:
+HardLeftHold:
+HardRightHold:
+HardOkHold:
 ElementCount: 5
 #
 Element0Type: status
@@ -48,30 +53,37 @@ Element2Type: hstep
 Element2Id: horizontal
 Element2Rect: 0 3 3 1
 Element2Label: NAV
-Element2Left: Left
-Element2Right: Right
+Element2Left: sig:Left
+Element2Right: sig:Right
 #
 Element3Type: vstep
 Element3Id: vertical
 Element3Rect: 0 4 1 2
 Element3Label: VOL
-Element3Up: Up
-Element3Down: Down
+Element3Up: sig:Up
+Element3Down: sig:Down
 #
 Element4Type: button
 Element4Id: power
 Element4Rect: 1 4 1 2
 Element4Label: PWR
-Element4Tap: Power
-Element4Hold: Mute
-''', encoding='utf-8')
+Element4Icon: pwr
+Element4Tap: sig:Power
+Element4Hold: sig:Mute
+""", encoding="utf-8")
 
 (out / "signals.ir").write_text(
-'''Filetype: IR signals file
+"""Filetype: IR signals file
 Version: 1
 #
-# Replace these placeholders with signals captured from the target remote.
-''', encoding='utf-8')
+# Paste standard Flipper IR signal entries here.
+""", encoding="utf-8")
+
+(out / "actions.ur").write_text(
+"""Filetype: Flipper Uni Remote Actions
+Version: 1
+ActionCount: 0
+""", encoding="utf-8")
 
 print(f"Created {out.relative_to(root)}")
-print("Copy real Flipper IR entries into signals.ir and keep element bindings matched to signal names.")
+print("Map single signals as sig:<name> and sequences as act:<id>.")
