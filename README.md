@@ -2,7 +2,7 @@
 
 A data-driven universal-remote FAP for Flipper Zero, designed so humans and coding agents can extend remotes without recompiling protocol data into the application.
 
-Current development baseline: **v0.3.0**.
+Current development baseline: **v0.3.1**.
 
 ## v0.2 architecture
 

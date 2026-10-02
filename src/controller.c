@@ -6,18 +6,24 @@
 #include <string.h>
 
 /*
- * Portrait use places the LCD above the D-pad, which means the physical device
- * is rotated counter-clockwise from its normal landscape orientation.
+ * Portrait use places the LCD above the D-pad. The physical device is rotated
+ * clockwise from its normal landscape orientation. Map physical key positions
+ * to the logical directions seen by the user in portrait:
+ *
+ * physical Left  -> logical Up
+ * physical Right -> logical Down
+ * physical Down  -> logical Left
+ * physical Up    -> logical Right
  */
 UniKey uni_map_physical_key(InputKey key) {
     switch(key) {
-    case InputKeyRight:
-        return UniKeyUp;
     case InputKeyLeft:
+        return UniKeyUp;
+    case InputKeyRight:
         return UniKeyDown;
-    case InputKeyUp:
-        return UniKeyLeft;
     case InputKeyDown:
+        return UniKeyLeft;
+    case InputKeyUp:
         return UniKeyRight;
     case InputKeyOk:
         return UniKeyOk;

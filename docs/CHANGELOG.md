@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1] - 2026-10-02
+
+### Fixed
+
+- Corrected portrait hard-key mapping: menu and focus navigation now match the visual direction of the D-pad when the LCD is above the controls.
+- Restored the intended focus-capture rule: normal D-pad input moves focus; H/V steppers capture only their own axis; D-pad elements capture all directions and OK until Long Back.
+
+
 All notable changes are documented here. Versions follow Semantic Versioning.
 
 ## [0.3.0] - 2026-10-02
