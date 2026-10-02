@@ -126,8 +126,20 @@ static void open_layout_editor(UniApp* app) {
     uni_controller_reset(&app->controller, app->ui.remote);
     app->controller.dpad_captured = false;
 
-    /* Layout editing includes display-only elements such as status/screen. */
-    app->ui.layout_element = app->ui.remote->element_count ? 0 : 0;
+    /* Start the editor on the current runtime page whenever possible. */
+    app->ui.layout_element = 0;
+    if(app->ui.remote->element_count) {
+        for(size_t i = 0; i < app->ui.remote->element_count; i++) {
+            if(app->ui.remote->elements[i].page == app->controller.page) {
+                app->ui.layout_element = i;
+                break;
+            }
+        }
+    }
+    app->ui.remote_page =
+        app->ui.remote->element_count ?
+            app->ui.remote->elements[app->ui.layout_element].page :
+            app->controller.page;
     app->ui.layout_moving = false;
     app->ui.layout_replace_mode = false;
     app->ui.page = UniUiLayoutEditor;
@@ -411,12 +423,13 @@ static void layout_select(UniApp* app, UniKey key) {
     size_t best_index = app->ui.layout_element;
 
     /*
-     * Layout Editor navigates all elements by occupied cells, not bounding
-     * rectangles. This makes the four D-pad corner slots independently selectable.
+     * Layout Editor navigates only the active page. D-pad selection still uses
+     * occupied cells, so the four corner slots remain independently selectable.
      */
     for(size_t i = 0; i < app->ui.remote->element_count; i++) {
         if(i == app->ui.layout_element) continue;
         const UniElement* candidate = &app->ui.remote->elements[i];
+        if(candidate->page != current->page) continue;
         const int score = uni_element_direction_score(current, candidate, dx, dy);
         if(score >= 0 && score < best_score) {
             best_score = score;
@@ -424,7 +437,45 @@ static void layout_select(UniApp* app, UniKey key) {
         }
     }
 
+    if(best_index == app->ui.layout_element && dy != 0 &&
+       app->ui.remote->page_count > 1U) {
+        uint8_t page = current->page;
+        const int ref_x2 = (int)current->x * 2 + (int)current->w - 1;
+
+        for(uint8_t attempt = 0; attempt < app->ui.remote->page_count - 1U; attempt++) {
+            page = dy > 0 ?
+                (uint8_t)((page + 1U) % app->ui.remote->page_count) :
+                (page == 0U ?
+                    (uint8_t)(app->ui.remote->page_count - 1U) :
+                    (uint8_t)(page - 1U));
+
+            int page_best = 10000;
+            size_t page_index = app->ui.remote->element_count;
+            for(size_t i = 0; i < app->ui.remote->element_count; i++) {
+                const UniElement* candidate = &app->ui.remote->elements[i];
+                if(candidate->page != page) continue;
+                const int cx2 = (int)candidate->x * 2 + (int)candidate->w - 1;
+                const int edge = dy > 0 ?
+                    (int)candidate->y :
+                    5 - (int)(candidate->y + candidate->h - 1U);
+                const int xdiff = abs(cx2 - ref_x2);
+                const int score = edge * 16 + xdiff;
+                if(score < page_best) {
+                    page_best = score;
+                    page_index = i;
+                }
+            }
+            if(page_index < app->ui.remote->element_count) {
+                best_index = page_index;
+                break;
+            }
+        }
+    }
+
     app->ui.layout_element = best_index;
+    if(best_index < app->ui.remote->element_count) {
+        app->ui.remote_page = app->ui.remote->elements[best_index].page;
+    }
 }
 
 static void layout_move(UniApp* app, UniKey key) {
@@ -566,6 +617,7 @@ static void handle_add_element(UniApp* app, const InputEvent* event, UniKey key)
             &app->store,
             app->ui.selected_remote,
             app->ui.menu_index,
+            app->ui.remote_page,
             &index);
     }
 
@@ -655,6 +707,11 @@ static void return_after_mapping(UniApp* app) {
 }
 
 static void handle_map_kind(UniApp* app, const InputEvent* event, UniKey key) {
+    const UniRemote* remote = selected_remote(app);
+    const bool stateful = remote && remote->transport == UniTransportStatefulIr;
+    const bool bluetooth = remote && remote->transport == UniTransportBluetoothHid;
+    const size_t count = stateful ? 3U : (bluetooth ? 2U : 4U);
+
     if(key == UniKeyBack && event->type == InputTypeShort) {
         app->ui.page = app->ui.map_target == UniMapHardKey ? UniUiKeymap : UniUiMapField;
         app->ui.menu_index = 0;
@@ -662,10 +719,36 @@ static void handle_map_kind(UniApp* app, const InputEvent* event, UniKey key) {
     }
     if(event->type != InputTypeShort) return;
     if(key == UniKeyUp || key == UniKeyDown) {
-        menu_move(&app->ui, 4, key);
+        menu_move(&app->ui, count, key);
         return;
     }
     if(key != UniKeyOk) return;
+
+    if(stateful) {
+        if(app->ui.menu_index == 0) {
+            app->ui.picker_kind = UniPickState;
+            app->ui.page = UniUiMapPick;
+            app->ui.menu_index = 0;
+        } else if(app->ui.menu_index == 1) {
+            if(set_current_binding(app, "")) return_after_mapping(app);
+        } else {
+            app->ui.page =
+                app->ui.map_target == UniMapHardKey ? UniUiKeymap : UniUiMapField;
+            app->ui.menu_index = 0;
+        }
+        return;
+    }
+
+    if(bluetooth) {
+        if(app->ui.menu_index == 0) {
+            if(set_current_binding(app, "")) return_after_mapping(app);
+        } else {
+            app->ui.page =
+                app->ui.map_target == UniMapHardKey ? UniUiKeymap : UniUiMapField;
+            app->ui.menu_index = 0;
+        }
+        return;
+    }
 
     if(app->ui.menu_index == 0) {
         app->ui.picker_kind = UniPickSignal;
@@ -687,7 +770,9 @@ static void handle_map_pick(UniApp* app, const InputEvent* event, UniKey key) {
     const size_t count =
         app->ui.picker_kind == UniPickSignal ?
             app->actions.signals.count :
-            sequence_count(&app->actions.actions);
+        app->ui.picker_kind == UniPickSequence ?
+            sequence_count(&app->actions.actions) :
+            uni_action_engine_state_action_count(&app->actions);
 
     if(key == UniKeyBack && event->type == InputTypeShort) {
         app->ui.page = UniUiMapKind;
@@ -708,11 +793,16 @@ static void handle_map_pick(UniApp* app, const InputEvent* event, UniKey key) {
             sizeof(binding),
             "sig:%s",
             app->actions.signals.names[app->ui.menu_index]);
-    } else {
+    } else if(app->ui.picker_kind == UniPickSequence) {
         const UniNamedAction* action =
             sequence_at(&app->actions.actions, app->ui.menu_index);
         if(!action) return;
         snprintf(binding, sizeof(binding), "act:%s", action->id);
+    } else {
+        const char* action =
+            uni_action_engine_state_action_name(&app->actions, app->ui.menu_index);
+        if(!action) return;
+        snprintf(binding, sizeof(binding), "st:%s", action);
     }
 
     if(set_current_binding(app, binding)) return_after_mapping(app);
