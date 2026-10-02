@@ -238,6 +238,12 @@ static bool load_element(FlipperFormat* ff, uint32_t index, UniElement* element)
     snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
     if(!ff_read_rect(ff, key, element)) return false;
 
+    uint32_t page = 0U;
+    snprintf(key, sizeof(key), "Element%luPage", (unsigned long)index);
+    ff_read_u32(ff, key, &page, false);
+    if(page >= UNI_MAX_PAGES) return false;
+    element->page = (uint8_t)page;
+
     read_element_string(ff, index, "Label", element->label, sizeof(element->label));
     read_element_string(ff, index, "Icon", element->icon, sizeof(element->icon));
     read_element_string(ff, index, "HoldIcon", element->hold_icon, sizeof(element->hold_icon));
@@ -282,9 +288,11 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
 
     memset(remote, 0, sizeof(UniRemote));
     remote->repeat_enabled = true;
+    remote->page_count = 1U;
     snprintf(remote->id, sizeof(remote->id), "%.23s", folder);
     snprintf(remote->signal_file, sizeof(remote->signal_file), "signals.ir");
     snprintf(remote->action_file, sizeof(remote->action_file), "actions.ur");
+    snprintf(remote->state_file, sizeof(remote->state_file), "state.urs");
 
     do {
         if(!flipper_format_file_open_existing(ff, config_path)) break;
@@ -300,8 +308,21 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         if(!parse_transport(transport_text, &remote->transport)) break;
         ff_read_u32(ff, "Order", &remote->order, false);
         ff_read_bool(ff, "RepeatEnabled", &remote->repeat_enabled, false);
+
+        uint32_t page_count = 1U;
+        ff_read_u32(ff, "PageCount", &page_count, false);
+        if(page_count == 0U || page_count > UNI_MAX_PAGES) break;
+        remote->page_count = (uint8_t)page_count;
+
         ff_read_string(ff, "SignalFile", remote->signal_file, sizeof(remote->signal_file), false);
         ff_read_string(ff, "ActionFile", remote->action_file, sizeof(remote->action_file), false);
+        ff_read_string(ff, "StateFile", remote->state_file, sizeof(remote->state_file), false);
+        ff_read_string(
+            ff,
+            "StateDriver",
+            remote->state_driver,
+            sizeof(remote->state_driver),
+            false);
         ff_read_string(
             ff,
             "BluetoothProfile",
@@ -323,8 +344,10 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
 
         char signal_file_copy[64];
         char action_file_copy[64];
+        char state_file_copy[64];
         snprintf(signal_file_copy, sizeof(signal_file_copy), "%s", remote->signal_file);
         snprintf(action_file_copy, sizeof(action_file_copy), "%s", remote->action_file);
+        snprintf(state_file_copy, sizeof(state_file_copy), "%s", remote->state_file);
 
         snprintf(remote->config_path, sizeof(remote->config_path), "%s", config_path);
         snprintf(
@@ -339,6 +362,12 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
             UNI_REMOTES_DIR "/%s/%s",
             folder,
             action_file_copy);
+        snprintf(
+            remote->state_path,
+            sizeof(remote->state_path),
+            UNI_REMOTES_DIR "/%s/%s",
+            folder,
+            state_file_copy);
         ok = true;
     } while(false);
 
@@ -407,6 +436,9 @@ static bool write_element(FlipperFormat* ff, size_t index, const UniElement* e) 
     WRITE_STR("Id", e->id);
     snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
     if(!flipper_format_write_uint32(ff, key, rect, 4)) return false;
+    uint32_t page = e->page;
+    snprintf(key, sizeof(key), "Element%luPage", (unsigned long)index);
+    if(!flipper_format_write_uint32(ff, key, &page, 1)) return false;
     WRITE_STR("Label", e->label);
     WRITE_STR("Icon", e->icon);
     WRITE_STR("HoldIcon", e->hold_icon);
@@ -460,8 +492,12 @@ bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
         if(!write_string(ff, "Transport", transport)) break;
         if(!flipper_format_write_uint32(ff, "Order", &remote->order, 1)) break;
         if(!flipper_format_write_bool(ff, "RepeatEnabled", &remote->repeat_enabled, 1)) break;
+        uint32_t page_count = remote->page_count ? remote->page_count : 1U;
+        if(!flipper_format_write_uint32(ff, "PageCount", &page_count, 1)) break;
         if(!write_string(ff, "SignalFile", remote->signal_file)) break;
         if(!write_string(ff, "ActionFile", remote->action_file)) break;
+        if(!write_string(ff, "StateFile", remote->state_file)) break;
+        if(!write_string(ff, "StateDriver", remote->state_driver)) break;
         if(!write_string(ff, "BluetoothProfile", remote->bluetooth_profile)) break;
 
         if(!write_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold])) break;
@@ -605,6 +641,7 @@ static bool elements_overlap_at(
     uint8_t bx,
     uint8_t by) {
     if(!a || !b) return false;
+    if(a->page != b->page) return false;
     for(uint8_t y = 0; y < 6; y++) {
         for(uint8_t x = 0; x < 3; x++) {
             if(uni_element_occupies_cell_at(a, ax, ay, x, y) &&
