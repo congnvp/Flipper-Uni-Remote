@@ -43,11 +43,16 @@ static void uni_draw_callback(Canvas* canvas, void* context) {
         app->tx_flash_until && (int32_t)(app->tx_flash_until - furi_get_tick()) > 0;
     if(app->ui.page == UniUiLayoutEditor) {
         app->ui.focus_index = app->ui.layout_element;
+        if(app->ui.remote && app->ui.layout_element < app->ui.remote->element_count) {
+            app->ui.runtime_page = app->ui.remote->elements[app->ui.layout_element].page;
+            app->controller.page = app->ui.runtime_page;
+        }
         app->ui.dpad_captured = false;
         app->ui.dpad_alt = false;
         app->ui.dpad_hold_key = UniKeyUnknown;
     } else {
         app->ui.focus_index = app->controller.focus_index;
+        app->ui.runtime_page = app->controller.page;
         app->ui.dpad_captured = app->controller.dpad_captured;
         app->ui.dpad_alt = app->controller.dpad_alt;
         app->ui.dpad_hold_key = app->controller.dpad_hold_key;
@@ -418,10 +423,34 @@ static void layout_select(UniApp* app, UniKey key) {
     for(size_t i = 0; i < app->ui.remote->element_count; i++) {
         if(i == app->ui.layout_element) continue;
         const UniElement* candidate = &app->ui.remote->elements[i];
+        if(candidate->page != current->page) continue;
         const int score = uni_element_direction_score(current, candidate, dx, dy);
         if(score >= 0 && score < best_score) {
             best_score = score;
             best_index = i;
+        }
+    }
+
+    if(best_index == app->ui.layout_element &&
+       (key == UniKeyUp || key == UniKeyDown) &&
+       app->ui.remote->page_count > 1) {
+        uint8_t target = current->page;
+        target = key == UniKeyDown ?
+            (uint8_t)((target + 1) % app->ui.remote->page_count) :
+            (target == 0 ? (uint8_t)(app->ui.remote->page_count - 1) : (uint8_t)(target - 1));
+
+        int page_score = 10000;
+        for(size_t i = 0; i < app->ui.remote->element_count; i++) {
+            const UniElement* candidate = &app->ui.remote->elements[i];
+            if(candidate->page != target) continue;
+            const int dx_abs = candidate->x > current->x ?
+                candidate->x - current->x : current->x - candidate->x;
+            const int edge = key == UniKeyDown ? candidate->y : (5 - candidate->y);
+            const int score = dx_abs * 16 + edge;
+            if(score < page_score) {
+                page_score = score;
+                best_index = i;
+            }
         }
     }
 
