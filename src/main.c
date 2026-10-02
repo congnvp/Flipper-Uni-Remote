@@ -34,10 +34,13 @@ typedef struct {
     UniUiPage menu_return_page;
     bool running;
     bool repeat_enabled;
+    uint32_t tx_flash_until;
 } UniApp;
 
 static void uni_draw_callback(Canvas* canvas, void* context) {
     UniApp* app = context;
+    app->ui.tx_flash =
+        app->tx_flash_until && (int32_t)(app->tx_flash_until - furi_get_tick()) > 0;
     if(app->ui.page == UniUiLayoutEditor) {
         app->ui.focus_index = app->ui.layout_element;
         app->ui.dpad_captured = false;
@@ -105,6 +108,8 @@ static void system_escape(UniApp* app) {
         app->ui.page = UniUiHome;
         app->ui.remote = NULL;
         app->ui.last_signal[0] = '\0';
+        app->ui.button_pressed = false;
+        app->tx_flash_until = 0;
         memset(&app->controller, 0, sizeof(app->controller));
         app->controller.dpad_hold_key = UniKeyUnknown;
         app->controller.pending_nav_key = UniKeyUnknown;
@@ -194,13 +199,12 @@ static void dispatch_remote_action(UniApp* app) {
         sizeof(app->ui.last_signal),
         "%s",
         app->controller.binding);
-    app->ui.tx_flash = true;
     app->ui.tx_ok = uni_action_engine_execute(
         &app->actions,
         app->ui.remote,
         app->controller.binding,
         app->controller.repeat);
-    app->ui.tx_flash = false;
+    app->tx_flash_until = furi_get_tick() + furi_ms_to_ticks(220);
     app->controller.action_ready = false;
 }
 
@@ -223,6 +227,10 @@ static void handle_home(UniApp* app, const InputEvent* event, UniKey key) {
 }
 
 static void handle_remote(UniApp* app, const InputEvent* event, UniKey key) {
+    if(key == UniKeyOk) {
+        if(event->type == InputTypePress) app->ui.button_pressed = true;
+        else if(event->type == InputTypeRelease) app->ui.button_pressed = false;
+    }
     if(key == UniKeyBack && event->type == InputTypeShort && !app->controller.dpad_captured) {
         open_menu(app, UniUiRemote);
         return;
