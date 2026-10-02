@@ -73,9 +73,9 @@ static const uint8_t font3x5[64][5] = {
     ['3' - 32]={6,1,2,1,6}, ['4' - 32]={5,5,7,1,1}, ['5' - 32]={7,4,6,1,6},
     ['6' - 32]={3,4,6,5,2}, ['7' - 32]={7,1,2,2,2}, ['8' - 32]={2,5,2,5,2},
     ['9' - 32]={2,5,3,1,6}, ['A' - 32]={2,5,7,5,5}, ['B' - 32]={6,5,6,5,6},
-    ['C' - 32]={3,4,4,4,3}, ['G' - 32]={3,4,5,5,3}, ['K' - 32]={5,5,6,5,5},
-    ['O' - 32]={2,5,5,5,2}, ['R' - 32]={6,5,6,5,5}, ['X' - 32]={5,5,2,5,5},
-    ['Y' - 32]={5,5,2,2,2},
+    ['C' - 32]={3,4,4,4,3}, ['D' - 32]={6,5,5,5,6}, ['G' - 32]={3,4,5,5,3},
+    ['K' - 32]={5,5,6,5,5}, ['O' - 32]={2,5,5,5,2}, ['R' - 32]={6,5,6,5,5},
+    ['U' - 32]={5,5,5,5,7}, ['X' - 32]={5,5,2,5,5}, ['Y' - 32]={5,5,2,2,2},
 };
 
 static void glyph(Canvas* canvas, char ch, int16_t x, int16_t y, uint8_t scale, Color color) {
@@ -158,7 +158,7 @@ void ui_icon_draw(Canvas* canvas,UiIcon icon,int16_t x,int16_t y,Color color){
     case UiIconVolDown: speaker(canvas,x+2,y+2,color);minus(canvas,x+14,cy,color);break;
     case UiIconChUp: arrow(canvas,cx,cy,0,-1,color);plus(canvas,x+14,y+14,color);break;
     case UiIconChDown: arrow(canvas,cx,cy,0,1,color);minus(canvas,x+14,y+14,color);break;
-    case UiIconPlay: for(int8_t i=0;i<7;i++)vl(canvas,x+5+i,cy-i/2,1+i,color);break;
+    case UiIconPlay: for(int8_t i=0;i<7;i++)vl(canvas,x+5+i,cy-i,1+2*i,color);break;
     case UiIconPause: fill(canvas,x+5,y+4,3,11,color);fill(canvas,x+11,y+4,3,11,color);break;
     case UiIconStop: fill(canvas,x+5,y+5,9,9,color);break;
     case UiIconRecord: ring(canvas,cx,cy,color);fill(canvas,cx-2,cy-2,5,5,color);break;
@@ -175,7 +175,14 @@ void ui_icon_draw(Canvas* canvas,UiIcon icon,int16_t x,int16_t y,Color color){
     case UiIconKeyboard: rect(canvas,x+2,y+5,15,9,color);for(int8_t r=0;r<2;r++)for(int8_t cc=0;cc<5;cc++)px(canvas,x+4+cc*2,y+7+r*3,color);hl(canvas,x+5,y+12,9,color);break;
     case UiIconMouse: rect(canvas,x+5,y+2,9,15,color);vl(canvas,cx,y+2,5,color);px(canvas,cx-2,y+5,color);px(canvas,cx+2,y+5,color);break;
     case UiIconPair: ring(canvas,x+6,cy,color);ring(canvas,x+13,cy,color);hl(canvas,x+8,cy,4,color);break;
-    case UiIconBluetooth: glyph(canvas,'B',x+7,y+4,2,color);break;
+    case UiIconBluetooth:
+        vl(canvas,cx,y+2,15,color);
+        hl(canvas,cx,y+2,2,color); px(canvas,cx+2,y+3,color); px(canvas,cx+3,y+4,color);
+        px(canvas,cx+2,y+5,color); px(canvas,cx+1,y+6,color);
+        hl(canvas,cx,y+16,2,color); px(canvas,cx+2,y+15,color); px(canvas,cx+3,y+14,color);
+        px(canvas,cx+2,y+13,color); px(canvas,cx+1,y+12,color);
+        for(int8_t i=0;i<5;i++){px(canvas,cx-i,y+5+i,color);px(canvas,cx-i,y+13-i,color);}
+        break;
     case UiIconNum0: case UiIconNum1: case UiIconNum2: case UiIconNum3: case UiIconNum4:
     case UiIconNum5: case UiIconNum6: case UiIconNum7: case UiIconNum8: case UiIconNum9:
         glyph(canvas,(char)('0'+(icon-UiIconNum0)),x+6,y+4,2,color);break;
@@ -186,7 +193,14 @@ void ui_icon_draw(Canvas* canvas,UiIcon icon,int16_t x,int16_t y,Color color){
     case UiIconYellow: glyph(canvas,'Y',x+6,y+4,2,color);break;
     case UiIconBlue: glyph(canvas,'B',x+6,y+4,2,color);break;
     case UiIconLight: ring(canvas,cx,y+7,color);hl(canvas,cx-3,y+14,7,color);hl(canvas,cx-2,y+16,5,color);break;
-    case UiIconSleep: for(int8_t r=0;r<13;r++)for(int8_t cc=0;cc<8;cc++)if(cc<4+(r<6?r:12-r)/2)px(canvas,x+4+cc,y+3+r,color);fill(canvas,x+9,y+3,7,13,ColorWhite);break;
+    case UiIconSleep:
+        px(canvas,x+11,y+3,color);px(canvas,x+9,y+4,color);px(canvas,x+7,y+5,color);
+        px(canvas,x+6,y+7,color);px(canvas,x+6,y+9,color);px(canvas,x+7,y+11,color);
+        px(canvas,x+9,y+13,color);px(canvas,x+11,y+14,color);px(canvas,x+13,y+14,color);
+        px(canvas,x+15,y+13,color);px(canvas,x+13,y+12,color);px(canvas,x+12,y+11,color);
+        px(canvas,x+11,y+10,color);px(canvas,x+10,y+8,color);px(canvas,x+10,y+6,color);
+        px(canvas,x+11,y+5,color);
+        break;
     case UiIconTimer: ring(canvas,cx,cy+1,color);hl(canvas,cx-2,y+2,5,color);vl(canvas,cx,cy-4,5,color);hl(canvas,cx,cy,4,color);break;
     case UiIconFan: fan(canvas,cx,cy,color);break;
     case UiIconTempUp: vl(canvas,x+6,y+3,11,color);ring(canvas,x+6,y+14,color);arrow(canvas,x+13,cy,0,-1,color);break;
