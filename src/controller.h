@@ -20,6 +20,8 @@ typedef struct {
     size_t focus_index;
     size_t focus_before_capture;
     bool focus_before_capture_valid;
+    uint8_t page;
+    bool ok_pressed;
 
     bool dpad_captured;
     bool dpad_alt;
@@ -38,6 +40,11 @@ typedef struct {
 } UniController;
 
 void uni_controller_reset(UniController* controller, const UniRemote* remote);
+bool uni_controller_set_page(
+    UniController* controller,
+    const UniRemote* remote,
+    uint8_t page,
+    bool from_above);
 bool uni_controller_move_focus(UniController* controller, const UniRemote* remote, UniKey direction);
 void uni_controller_handle(
     UniController* controller,
