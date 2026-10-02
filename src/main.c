@@ -74,6 +74,7 @@ typedef struct {
     uint8_t menu_index;
     uint8_t selected_remote;
     uint8_t grid_focus;
+    uint8_t runtime_page;
     uint8_t control_field;
     bool layout_move;
 
@@ -223,10 +224,135 @@ static void text_center3(Canvas* canvas, const char* text, int16_t cx, int16_t y
 static void triangle(Canvas* canvas, int16_t cx, int16_t cy, UiKey direction, Color color) {
     if(direction == KeyLeft || direction == KeyRight) {
         for(int16_t col = 0; col < 5; col++) {
-            int16_t n = direction == KeyLeft ? col : 4 - col;
+            int16_t n = direction == KeyLeft ? 4 - col : col;
             int16_t span = 1 + 2 * n;
             vline(canvas, cx - 2 + col, cy - span / 2, span, color);
         }
+    } else if(direction == KeyUp || direction == KeyDown) {
+        for(int16_t row = 0; row < 5; row++) {
+            int16_t n = direction == KeyUp ? 4 - row : row;
+            int16_t span = 1 + 2 * n;
+            hline(canvas, cx - span / 2, cy - 2 + row, span, color);
+        }
+    }
+}
+
+static void ring(Canvas* canvas, int16_t cx, int16_t cy, Color color) {
+    static const int8_t pts[][2] = {
+        {-3,-5},{-2,-6},{-1,-6},{0,-6},{1,-6},{2,-6},{3,-5},
+        {5,-3},{6,-2},{6,-1},{6,0},{6,1},{6,2},{5,3},
+        {3,5},{2,6},{1,6},{0,6},{-1,6},{-2,6},{-3,5},
+        {-5,3},{-6,2},{-6,1},{-6,0},{-6,-1},{-6,-2},{-5,-3},
+    };
+    for(size_t i = 0; i < sizeof(pts) / sizeof(pts[0]); i++) {
+        pset(canvas, cx + pts[i][0], cy + pts[i][1], color);
+    }
+}
+
+static void draw_icon(Canvas* canvas, const char* label, int16_t x, int16_t y, Color color) {
+    const int16_t cx = x + 9;
+    const int16_t cy = y + 9;
+
+    if(strcmp(label, "PWR") == 0) {
+        ring(canvas, cx, cy + 1, color);
+        vline(canvas, cx, cy - 6, 7, color);
+    } else if(strcmp(label, "MUTE") == 0) {
+        fill_rect(canvas, cx - 6, cy - 2, 3, 5, color);
+        hline(canvas, cx - 3, cy - 3, 2, color);
+        hline(canvas, cx - 3, cy + 3, 2, color);
+        hline(canvas, cx + 2, cy - 4, 5, color);
+        hline(canvas, cx + 2, cy + 4, 5, color);
+    } else if(strcmp(label, "INPUT") == 0) {
+        frame(canvas, x + 3, y + 4, 10, 11, false);
+        hline(canvas, x + 8, y + 9, 7, color);
+        triangle(canvas, x + 13, y + 9, KeyRight, color);
+    } else if(strcmp(label, "HOME") == 0) {
+        hline(canvas, cx - 5, cy, 11, color);
+        vline(canvas, cx - 4, cy, 6, color);
+        vline(canvas, cx + 4, cy, 6, color);
+        triangle(canvas, cx, cy - 3, KeyUp, color);
+    } else if(strcmp(label, "MENU") == 0) {
+        hline(canvas, cx - 6, cy - 5, 13, color);
+        hline(canvas, cx - 6, cy, 13, color);
+        hline(canvas, cx - 6, cy + 5, 13, color);
+    } else if(strcmp(label, "BACK") == 0) {
+        triangle(canvas, cx - 3, cy, KeyLeft, color);
+        hline(canvas, cx - 1, cy, 8, color);
+    } else if(strcmp(label, "UP") == 0) {
+        triangle(canvas, cx, cy, KeyUp, color);
+    } else if(strcmp(label, "DOWN") == 0) {
+        triangle(canvas, cx, cy, KeyDown, color);
+    } else if(strcmp(label, "LEFT") == 0) {
+        triangle(canvas, cx, cy, KeyLeft, color);
+    } else if(strcmp(label, "RIGHT") == 0) {
+        triangle(canvas, cx, cy, KeyRight, color);
+    } else if(strcmp(label, "OK") == 0) {
+        ring(canvas, cx, cy, color);
+        text_center3(canvas, "OK", cx, cy - 2, color);
+    } else if(strcmp(label, "INFO") == 0) {
+        ring(canvas, cx, cy, color);
+        pset(canvas, cx, cy - 4, color);
+        vline(canvas, cx, cy - 1, 6, color);
+    } else if(strcmp(label, "VOL+") == 0 || strcmp(label, "TEMP+") == 0 ||
+              strcmp(label, "ZOOM+") == 0 || strcmp(label, "FOC+") == 0) {
+        hline(canvas, cx - 5, cy, 11, color);
+        vline(canvas, cx, cy - 5, 11, color);
+    } else if(strcmp(label, "VOL-") == 0 || strcmp(label, "TEMP-") == 0 ||
+              strcmp(label, "ZOOM-") == 0 || strcmp(label, "FOC-") == 0) {
+        hline(canvas, cx - 5, cy, 11, color);
+    } else if(strcmp(label, "FAN") == 0) {
+        pset(canvas, cx, cy, color);
+        hline(canvas, cx - 1, cy - 5, 3, color);
+        vline(canvas, cx + 5, cy - 1, 3, color);
+        hline(canvas, cx - 1, cy + 5, 3, color);
+        vline(canvas, cx - 5, cy - 1, 3, color);
+        hline(canvas, cx + 1, cy - 4, 3, color);
+        vline(canvas, cx + 4, cy + 1, 3, color);
+        hline(canvas, cx - 3, cy + 4, 3, color);
+        vline(canvas, cx - 4, cy - 3, 3, color);
+    } else if(strcmp(label, "COOL") == 0 || strcmp(label, "FREEZE") == 0) {
+        hline(canvas, cx - 6, cy, 13, color);
+        vline(canvas, cx, cy - 6, 13, color);
+        for(int8_t d = -4; d <= 4; d++) {
+            if((d & 1) == 0) {
+                pset(canvas, cx + d, cy + d, color);
+                pset(canvas, cx + d, cy - d, color);
+            }
+        }
+    } else if(strcmp(label, "LIGHT") == 0) {
+        ring(canvas, cx, cy, color);
+        hline(canvas, cx - 7, cy, 3, color);
+        hline(canvas, cx + 5, cy, 3, color);
+        vline(canvas, cx, cy - 7, 3, color);
+        vline(canvas, cx, cy + 5, 3, color);
+    } else if(strcmp(label, "SLEEP") == 0) {
+        vline(canvas, cx - 4, cy - 4, 9, color);
+        pset(canvas, cx - 3, cy - 5, color);
+        pset(canvas, cx - 2, cy - 6, color);
+        pset(canvas, cx - 3, cy + 5, color);
+        pset(canvas, cx - 2, cy + 6, color);
+        vline(canvas, cx + 2, cy - 3, 7, color);
+        pset(canvas, cx + 3, cy - 2, color);
+        pset(canvas, cx + 3, cy + 2, color);
+    } else if(strcmp(label, "TIMER") == 0) {
+        ring(canvas, cx, cy, color);
+        vline(canvas, cx, cy - 4, 5, color);
+        hline(canvas, cx, cy, 4, color);
+    } else if(strcmp(label, "SWING") == 0) {
+        triangle(canvas, cx - 4, cy, KeyLeft, color);
+        triangle(canvas, cx + 4, cy, KeyRight, color);
+    } else if(strcmp(label, "GUIDE") == 0) {
+        for(int8_t dx = -5; dx <= 5; dx += 5) {
+            for(int8_t dy = -5; dy <= 5; dy += 5) {
+                frame(canvas, cx + dx - 1, cy + dy - 1, 3, 3, false);
+            }
+        }
+    } else if(strcmp(label, "BLANK") == 0) {
+        frame(canvas, cx - 5, cy - 5, 11, 11, false);
+    } else {
+        char short_label[5] = {0};
+        strncpy(short_label, label, 4);
+        text_center3(canvas, short_label, cx, cy - 2, color);
     }
 }
 
@@ -372,27 +498,79 @@ static void draw_about(Canvas* canvas) {
     text_center3(canvas, "BACK TO RETURN", 32, 111, ColorBlack);
 }
 
+static uint8_t runtime_page_count(const App* app) {
+    switch(app->remotes[app->selected_remote].kind) {
+    case RemoteAc: return 4;
+    case RemoteProjector: return 3;
+    case RemoteGeneric: return 2;
+    case RemoteTv:
+    default:
+        return 5;
+    }
+}
+
+static void draw_page_indicator(Canvas* canvas, const App* app) {
+    const uint8_t count = runtime_page_count(app);
+    if(count == 0) return;
+
+    /* 3px bottom rail: inactive page = 1px, active page = 2px. */
+    const uint8_t gap = 2;
+    const uint8_t total = (uint8_t)(count + (count - 1) * gap + 1);
+    int16_t x = (60 - total) / 2;
+    const int16_t y = 125;
+
+    for(uint8_t i = 0; i < count; i++) {
+        if(i == app->runtime_page) {
+            hline(canvas, x, y, 2, ColorBlack);
+            x += 2;
+        } else {
+            pset(canvas, x, y, ColorBlack);
+            x += 1;
+        }
+        if(i + 1 < count) x += gap;
+    }
+}
+
 static void draw_grid(Canvas* canvas, const App* app, bool editor) {
-    static const uint8_t gx[] = {0,21,42,64};
-    static const uint8_t gy[] = {0,21,42,64,85,106,128};
     const char** labels = grid_for_remote(app);
 
+    /*
+     * Exact pixel geometry:
+     * X: 19 + 1 + 19 + 1 + 19 + 1 + 3(page rail) + 1 = 64.
+     * Y: six (19 + 1) rows = 120, then 4px reserved system gap,
+     *    3px page rail, 1px outer line = 128.
+     */
     for(uint8_t row = 0; row < 6; row++) {
         for(uint8_t col = 0; col < 3; col++) {
             uint8_t i = row * 3 + col;
-            int16_t x = gx[col];
-            int16_t y = gy[row];
-            int16_t w = gx[col + 1] - x;
-            int16_t h = gy[row + 1] - y;
+            int16_t x = col * 20;
+            int16_t y = row * 20;
             bool active = i == app->grid_focus;
-            frame(canvas, x + 1, y + 1, w - 2, h - 2, active);
-            Color c = active ? ColorWhite : ColorBlack;
-            text_center3(canvas, labels[i], x + w / 2, y + h / 2 - 2, c);
+
+            if(active) fill_rect(canvas, x, y, 19, 19, ColorBlack);
+            draw_icon(canvas, labels[i], x, y, active ? ColorWhite : ColorBlack);
         }
     }
 
+    /* Shared 1px grid separators; element areas remain exactly 19x19. */
+    vline(canvas, 19, 0, 120, ColorBlack);
+    vline(canvas, 39, 0, 120, ColorBlack);
+    vline(canvas, 59, 0, 120, ColorBlack);
+    hline(canvas, 0, 19, 60, ColorBlack);
+    hline(canvas, 0, 39, 60, ColorBlack);
+    hline(canvas, 0, 59, 60, ColorBlack);
+    hline(canvas, 0, 79, 60, ColorBlack);
+    hline(canvas, 0, 99, 60, ColorBlack);
+    hline(canvas, 0, 119, 60, ColorBlack);
+
+    /* 3px right system rail + 1px outer edge. */
+    vline(canvas, 63, 0, 128, ColorBlack);
+    hline(canvas, 0, 127, 64, ColorBlack);
+
+    if(!editor) draw_page_indicator(canvas, app);
+
     if(editor) {
-        text3(canvas, app->layout_move ? "MV" : "ED", 2, 2, ColorBlack);
+        text3(canvas, app->layout_move ? "MV" : "ED", 48, 121, ColorBlack);
     }
 }
 
@@ -499,6 +677,25 @@ static void grid_move(App* app, UiKey key) {
     app->grid_focus = row * 3 + col;
 }
 
+static void runtime_grid_move(App* app, UiKey key) {
+    uint8_t row = app->grid_focus / 3;
+    uint8_t col = app->grid_focus % 3;
+    const uint8_t pages = runtime_page_count(app);
+
+    if(key == KeyRight && col == 2) {
+        app->runtime_page = (app->runtime_page + 1) % pages;
+        app->grid_focus = row * 3;
+        return;
+    }
+    if(key == KeyLeft && col == 0) {
+        app->runtime_page = app->runtime_page == 0 ? pages - 1 : app->runtime_page - 1;
+        app->grid_focus = row * 3 + 2;
+        return;
+    }
+
+    grid_move(app, key);
+}
+
 static void show_info(App* app, Screen return_to, const char* title, const char* text) {
     app->info_return = return_to;
     app->info_title = title;
@@ -528,6 +725,7 @@ static void handle_home(App* app, UiKey key) {
         } else {
             app->selected_remote = page_remote_at(app, app->home_page, app->home_row);
             app->grid_focus = 0;
+            app->runtime_page = 0;
             app->screen = ScreenRuntime;
         }
     } else if(key == KeyBack) {
@@ -543,7 +741,7 @@ static void handle_short(App* app, UiKey key) {
 
     if(app->screen == ScreenRuntime) {
         if(key == KeyBack) app->screen = ScreenHome;
-        else if(key == KeyUp || key == KeyDown || key == KeyLeft || key == KeyRight) grid_move(app, key);
+        else if(key == KeyUp || key == KeyDown || key == KeyLeft || key == KeyRight) runtime_grid_move(app, key);
         return;
     }
 
