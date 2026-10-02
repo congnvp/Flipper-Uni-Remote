@@ -34,10 +34,10 @@ UniKey uni_map_physical_key(InputKey key) {
     }
 }
 
-static size_t first_focusable(const UniRemote* remote) {
+static size_t first_focusable(const UniRemote* remote, uint8_t page) {
     if(!remote) return 0;
     for(size_t i = 0; i < remote->element_count; i++) {
-        if(uni_element_focusable(&remote->elements[i])) return i;
+        if(remote->elements[i].page == page && uni_element_focusable(&remote->elements[i])) return i;
     }
     return 0;
 }
@@ -56,6 +56,7 @@ static void set_focus(
     }
 
     controller->focus_index = index;
+    controller->page = remote->elements[index].page;
     controller->dpad_captured = remote->elements[index].type == UniElementDpad;
     if(!controller->dpad_captured) {
         controller->dpad_alt = false;
@@ -88,7 +89,7 @@ bool uni_controller_move_focus(
     for(size_t i = 0; i < remote->element_count; i++) {
         if(i == controller->focus_index) continue;
         const UniElement* candidate = &remote->elements[i];
-        if(!uni_element_focusable(candidate)) continue;
+        if(candidate->page != controller->page || !uni_element_focusable(candidate)) continue;
 
         const int score = uni_element_direction_score(current, candidate, dx, dy);
         if(score >= 0 && score < best_score) {
@@ -97,9 +98,36 @@ bool uni_controller_move_focus(
         }
     }
 
-    if(best_index == controller->focus_index) return false;
-    set_focus(controller, remote, best_index, true);
-    return true;
+    if(best_index != controller->focus_index) {
+        set_focus(controller, remote, best_index, true);
+        return true;
+    }
+
+    if((direction == UniKeyUp || direction == UniKeyDown) && remote->page_count > 1) {
+        uint8_t target = controller->page;
+        if(direction == UniKeyDown) target = (uint8_t)((target + 1) % remote->page_count);
+        else target = target == 0 ? (uint8_t)(remote->page_count - 1) : (uint8_t)(target - 1);
+
+        const uint8_t current_x = current->x;
+        int target_score = INT_MAX;
+        size_t target_index = remote->element_count;
+        for(size_t i = 0; i < remote->element_count; i++) {
+            const UniElement* candidate = &remote->elements[i];
+            if(candidate->page != target || !uni_element_focusable(candidate)) continue;
+            const int dx_abs = candidate->x > current_x ? candidate->x - current_x : current_x - candidate->x;
+            const int edge = direction == UniKeyDown ? candidate->y : (5 - candidate->y);
+            const int score = dx_abs * 16 + edge;
+            if(score < target_score) {
+                target_score = score;
+                target_index = i;
+            }
+        }
+        if(target_index < remote->element_count) {
+            set_focus(controller, remote, target_index, true);
+            return true;
+        }
+    }
+    return false;
 }
 
 static void emit(UniController* controller, const char* binding, bool repeat) {
@@ -178,7 +206,14 @@ void uni_controller_reset(UniController* controller, const UniRemote* remote) {
     controller->dpad_hold_key = UniKeyUnknown;
     controller->pending_nav_key = UniKeyUnknown;
 
-    const size_t first = first_focusable(remote);
+    controller->page = 0;
+    size_t first = first_focusable(remote, 0);
+    if(remote && first >= remote->element_count) {
+        for(uint8_t page = 1; page < remote->page_count; page++) {
+            first = first_focusable(remote, page);
+            if(first < remote->element_count) { controller->page = page; break; }
+        }
+    }
     if(remote && first < remote->element_count) {
         controller->focus_index = first;
         controller->dpad_captured = remote->elements[first].type == UniElementDpad;
@@ -315,7 +350,7 @@ void uni_controller_handle(
     }
 
     if(controller->focus_index >= remote->element_count) {
-        const size_t first = first_focusable(remote);
+        const size_t first = first_focusable(remote, controller->page);
         if(first < remote->element_count) set_focus(controller, remote, first, false);
     }
     if(controller->focus_index >= remote->element_count) return;
