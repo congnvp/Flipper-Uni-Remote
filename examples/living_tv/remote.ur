@@ -51,5 +51,5 @@ Element5Type: vstep
 Element5Id: source
 Element5Rect: 2 4 1 2
 Element5Label: SRC
-Element5Up: sig:SrcUp
-Element5Down: sig:SrcDown
+Element5Up:
+Element5Down:
