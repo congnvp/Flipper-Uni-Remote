@@ -5,7 +5,8 @@
 #include <stdint.h>
 
 #define UNI_MAX_REMOTES 12
-#define UNI_MAX_ELEMENTS 18
+#define UNI_MAX_ELEMENTS 72
+#define UNI_MAX_PAGES 8
 #define UNI_ID_MAX 24
 #define UNI_NAME_MAX 32
 #define UNI_LABEL_MAX 12
@@ -42,6 +43,7 @@ typedef enum {
 typedef struct {
     char id[UNI_ID_MAX];
     UniElementType type;
+    uint8_t page;
     uint8_t x;
     uint8_t y;
     uint8_t w;
@@ -80,6 +82,7 @@ typedef struct {
     UniTransport transport;
     uint32_t order;
     bool repeat_enabled;
+    uint8_t page_count;
 
     char config_path[UNI_PATH_MAX];
     char signal_file[64];
