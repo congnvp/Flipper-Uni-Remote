@@ -12,6 +12,8 @@ typedef struct {
 
 bool uni_remote_store_init(UniRemoteStore* store, Storage* storage);
 bool uni_remote_store_reload(UniRemoteStore* store);
+bool uni_remote_store_load_details(UniRemoteStore* store, size_t remote_index);
+void uni_remote_store_unload_details(UniRemoteStore* store, size_t remote_index);
 size_t uni_remote_store_count(const UniRemoteStore* store);
 const UniRemote* uni_remote_store_get(const UniRemoteStore* store, size_t index);
 UniRemote* uni_remote_store_get_mut(UniRemoteStore* store, size_t index);

@@ -76,8 +76,9 @@ static void refresh_remote_pointer(UniApp* app) {
 }
 
 static void open_remote(UniApp* app) {
+    if(!uni_remote_store_load_details(&app->store, app->ui.selected_remote)) return;
     app->ui.remote = selected_remote(app);
-    if(!app->ui.remote) return;
+    if(!app->ui.remote || !app->ui.remote->elements_loaded) return;
     load_actions_for_selected(app);
     app->ui.page = UniUiRemote;
     app->ui.last_signal[0] = '\0';
@@ -100,6 +101,7 @@ static void system_escape(UniApp* app) {
     if(app->ui.page == UniUiHome) {
         app->running = false;
     } else {
+        uni_remote_store_unload_details(&app->store, app->ui.selected_remote);
         app->ui.page = UniUiHome;
         app->ui.remote = NULL;
         app->ui.last_signal[0] = '\0';
@@ -110,8 +112,9 @@ static void system_escape(UniApp* app) {
 }
 
 static void open_layout_editor(UniApp* app) {
+    if(!uni_remote_store_load_details(&app->store, app->ui.selected_remote)) return;
     app->ui.remote = selected_remote(app);
-    if(!app->ui.remote) return;
+    if(!app->ui.remote || !app->ui.remote->elements_loaded) return;
     load_actions_for_selected(app);
     uni_controller_reset(&app->controller, app->ui.remote);
     app->controller.dpad_captured = false;
@@ -337,6 +340,8 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
         break;
     case 3:
         if(key == UniKeyOk) {
+            if(!uni_remote_store_load_details(&app->store, app->ui.selected_remote)) break;
+            app->ui.remote = selected_remote(app);
             load_actions_for_selected(app);
             app->ui.page = UniUiKeymap;
             app->ui.menu_index = 0;
@@ -832,6 +837,10 @@ int32_t uni_remote_app(void* p) {
         }
 
         gui_remove_view_port(app->gui, app->view_port);
+    }
+
+    for(size_t i = 0; i < uni_remote_store_count(&app->store); i++) {
+        uni_remote_store_unload_details(&app->store, i);
     }
 
     if(app->gui) furi_record_close(RECORD_GUI);
