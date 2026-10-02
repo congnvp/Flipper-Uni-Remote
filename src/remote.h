@@ -89,8 +89,9 @@ typedef struct {
     char bluetooth_profile[UNI_BT_PROFILE_MAX];
     char hard_bindings[UniHardCount][UNI_BINDING_MAX];
 
-    UniElement elements[UNI_MAX_ELEMENTS];
+    UniElement* elements;
     size_t element_count;
+    bool elements_loaded;
 } UniRemote;
 
 bool uni_element_focusable(const UniElement* element);
