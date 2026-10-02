@@ -97,3 +97,17 @@ typedef struct {
 bool uni_element_focusable(const UniElement* element);
 const char* uni_transport_label(UniTransport transport);
 const char* uni_element_type_name(UniElementType type);
+
+/* Logical 3x6-cell geometry shared by layout, collision and navigation. */
+bool uni_element_occupies_cell(const UniElement* element, uint8_t cell_x, uint8_t cell_y);
+bool uni_element_occupies_cell_at(
+    const UniElement* element,
+    uint8_t anchor_x,
+    uint8_t anchor_y,
+    uint8_t cell_x,
+    uint8_t cell_y);
+int uni_element_direction_score(
+    const UniElement* from,
+    const UniElement* to,
+    int8_t dx,
+    int8_t dy);
