@@ -144,7 +144,85 @@ static void ensure_default_package(Storage* storage) {
             "Action0Delay1: 0\n";
         write_text_file(storage, UNI_DEFAULT_ACTIONS, action_text);
     }
+
+    static const struct {
+        const char* folder;
+        const char* name;
+        const char* short_name;
+        const char* profile;
+        uint32_t order;
+    } ac_demos[] = {
+        {"demo_lg_ac", "LG AC", "LG", "LG_AKB75215401", 20},
+        {"demo_daikin_ac", "Daikin AC", "DAI", "DAIKIN_ARC433A73", 30},
+        {"demo_panasonic_ac", "Panasonic AC", "PAN", "PANASONIC_RKR", 40},
+        {"demo_carrier_ac", "Carrier AC", "CAR", "CARRIER_WC_UA4NE", 50},
+    };
+
+    for(size_t d = 0; d < sizeof(ac_demos) / sizeof(ac_demos[0]); d++) {
+        char dir[UNI_PATH_MAX];
+        char path[UNI_PATH_MAX];
+        snprintf(dir, sizeof(dir), UNI_REMOTES_DIR "/%s", ac_demos[d].folder);
+        storage_common_mkdir(storage, dir);
+        snprintf(path, sizeof(path), "%s/remote.ur", dir);
+        if(storage_file_exists(storage, path)) continue;
+
+        char text[4096];
+        const bool carrier = strcmp(ac_demos[d].profile, "CARRIER_WC_UA4NE") == 0;
+        const bool panasonic = strcmp(ac_demos[d].profile, "PANASONIC_RKR") == 0;
+        snprintf(
+            text,
+            sizeof(text),
+            "Filetype: Flipper Uni Remote\n"
+            "Version: 1\n"
+            "Id: %s\n"
+            "Name: %s\n"
+            "ShortName: %s\n"
+            "Transport: STATE_IR\n"
+            "StateProfile: %s\n"
+            "Order: %lu\n"
+            "RepeatEnabled: false\n"
+            "SignalFile: \n"
+            "ActionFile: \n"
+            "BluetoothProfile: \n"
+            "HardUpHold: \n"
+            "HardDownHold: \n"
+            "HardLeftHold: \n"
+            "HardRightHold: \n"
+            "HardOkHold: \n"
+            "ElementCount: %u\n"
+            "#\n"
+            "Element0Type: button\nElement0Id: power\nElement0Rect: 0 0 1 1\nElement0Label: PWR\nElement0Icon: pwr\nElement0Tap: st:power\n"
+            "#\n"
+            "Element1Type: button\nElement1Id: mode\nElement1Rect: 1 0 1 1\nElement1Label: MODE\nElement1Icon: mode\nElement1Tap: st:mode+\n"
+            "#\n"
+            "Element2Type: button\nElement2Id: fan\nElement2Rect: 2 0 1 1\nElement2Label: FAN\nElement2Icon: fan\nElement2Tap: st:fan+\n"
+            "#\n"
+            "Element3Type: button\nElement3Id: tempdn\nElement3Rect: 0 1 1 1\nElement3Label: T-\nElement3Icon: minus\nElement3Tap: st:temp-\n"
+            "#\n"
+            "Element4Type: button\nElement4Id: tempup\nElement4Rect: 1 1 1 1\nElement4Label: T+\nElement4Icon: plus\nElement4Tap: st:temp+\n"
+            "#\n"
+            "Element5Type: button\nElement5Id: swing\nElement5Rect: 2 1 1 1\nElement5Label: SWG\nElement5Icon: swing\nElement5Tap: st:%s\n"
+            "#\n"
+            "Element6Type: button\nElement6Id: eco\nElement6Rect: 0 2 1 1\nElement6Label: ECO\nElement6Icon: eco\nElement6Tap: st:eco\n"
+            "#\n"
+            "Element7Type: button\nElement7Id: turbo\nElement7Rect: 1 2 1 1\nElement7Label: TUR\nElement7Icon: turbo\nElement7Tap: st:turbo\n"
+            "%s",
+            ac_demos[d].folder,
+            ac_demos[d].name,
+            ac_demos[d].short_name,
+            ac_demos[d].profile,
+            (unsigned long)ac_demos[d].order,
+            carrier ? 9U : (panasonic ? 9U : 8U),
+            carrier ? "swing" : "swing",
+            carrier ?
+                "#\nElement8Type: button\nElement8Id: fix\nElement8Rect: 2 2 1 1\nElement8Label: FIX\nElement8Icon: down\nElement8Tap: st:fix\n" :
+            panasonic ?
+                "#\nElement8Type: button\nElement8Id: nanoe\nElement8Rect: 2 2 1 1\nElement8Label: NANO\nElement8Icon: fan\nElement8Tap: st:nanoe\n" :
+                "");
+        write_text_file(storage, path, text);
+    }
 }
+
 
 static bool ff_read_string(
     FlipperFormat* ff,
