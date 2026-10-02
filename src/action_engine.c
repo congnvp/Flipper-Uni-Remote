@@ -30,7 +30,7 @@ static bool load_signal_names(Storage* storage, const char* path, UniSignalCatal
                     snprintf(
                         catalog->names[catalog->count],
                         UNI_SIGNAL_NAME_MAX,
-                        "%s",
+                        "%.31s",
                         value);
                     catalog->count++;
                 }
@@ -45,7 +45,7 @@ static bool load_signal_names(Storage* storage, const char* path, UniSignalCatal
         if(strncmp(line, "name:", 5) == 0 && catalog->count < UNI_MAX_SIGNALS) {
             const char* value = line + 5;
             while(*value == ' ') value++;
-            snprintf(catalog->names[catalog->count], UNI_SIGNAL_NAME_MAX, "%s", value);
+            snprintf(catalog->names[catalog->count], UNI_SIGNAL_NAME_MAX, "%.31s", value);
             catalog->count++;
         }
     }
