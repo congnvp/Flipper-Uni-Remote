@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.3] - 2026-10-02
+
+### Fixed
+
+- Replaced bounding-box collision with cell-level occupancy.
+- D-pad now occupies only its five cross cells; four corner cells accept 1×1 buttons.
+- Mixed-size elements may overlap another element's bounding rectangle when their occupied cells do not collide.
+- Runtime and editor focus navigation now use occupied cells, keeping D-pad corner controls reachable.
+
+### Added
+
+- `btn21` 2×1 button preset.
+
+
 ## [0.4.2] - 2026-10-02
 
 ### Fixed
