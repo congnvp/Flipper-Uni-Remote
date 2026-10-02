@@ -234,8 +234,9 @@ static void draw_status(Canvas* canvas, const UniUiState* state) {
     /* Fixed 64x8 status bar, deliberately borderless. */
     if(!state->remote) return;
     text3(canvas, uni_transport_label(state->remote->transport), 0, 1, ColorBlack);
-    char short_name[4] = {0};
-    snprintf(short_name, sizeof(short_name), "%.3s", state->remote->short_name);
+    char short_name[16] = {0};
+    if(state->status_text[0]) snprintf(short_name, sizeof(short_name), "%.15s", state->status_text);
+    else snprintf(short_name, sizeof(short_name), "%.3s", state->remote->short_name);
     text_center3(canvas, short_name, 31, 1, ColorBlack);
 
     const char* right = state->tx_flash ? "TX" : (state->tx_ok ? "--" : "ER");
