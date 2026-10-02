@@ -334,6 +334,7 @@ static void draw_dpad(
 
 static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
     const UniElement* e=&state->remote->elements[index];
+    if(e->page != state->runtime_page) return;
     const bool focused=uni_element_focusable(e)&&index==state->focus_index;
     int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
     switch(e->type) {
@@ -350,8 +351,21 @@ static void draw_remote(Canvas* canvas,const UniUiState* state) {
     if(!state->remote) return;
     draw_status(canvas, state);
     for(size_t i=0;i<state->remote->element_count;i++) draw_element(canvas,state,i);
-    /* One-page build: page rail still reserves the agreed 4px and shows active page. */
-    vline(canvas, 61, 67, 2, ColorBlack);
+
+    const uint8_t pages = state->remote->page_count ? state->remote->page_count : 1;
+    const uint8_t gap = 2;
+    const uint8_t total = (uint8_t)(pages + (pages - 1) * gap + 1);
+    int16_t y = 8 + (120 - total) / 2;
+    for(uint8_t page = 0; page < pages; page++) {
+        if(page == state->runtime_page) {
+            vline(canvas, 61, y, 2, ColorBlack);
+            y += 2;
+        } else {
+            pset(canvas, 61, y, ColorBlack);
+            y += 1;
+        }
+        if(page + 1 < pages) y += gap;
+    }
 }
 
 static void draw_menu_header(Canvas* canvas,const char* title) {
