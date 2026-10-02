@@ -2,6 +2,7 @@
 
 #include <gui/canvas.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum {
     UiIconPower, UiIconMute, UiIconInput, UiIconHome, UiIconMenu, UiIconBack,
@@ -31,4 +32,5 @@ typedef enum {
 
 uint8_t ui_icon_count(void);
 const char* ui_icon_name(UiIcon icon);
+bool ui_icon_lookup_id(const char* id, UiIcon* out);
 void ui_icon_draw(Canvas* canvas, UiIcon icon, int16_t x, int16_t y, Color color);

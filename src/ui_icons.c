@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 
 static void px(Canvas* canvas, int16_t x, int16_t y, Color color) {
     if(x < 0 || x >= 64 || y < 0 || y >= 128) return;
@@ -133,8 +134,34 @@ static const char* const names[UiIconCount]={
 "ASPECT","PROJECTOR","TV","GAMEPAD","A","B","X","Y","BLANK","REPEAT","SHUFFLE","FAVORITE",
 "BRIGHT+","BRIGHT-","LAST CH","EJECT"};
 
+static const char* const ids[UiIconCount]={
+"pwr","mut","input","home","menu","back","set","info","guide","exit",
+"up","down","left","right","ok","volp","volm","chp","chm","play","paus","stop","rec",
+"rew","ffwd","prev","next","sub","aud","mic","voice","search","apps","key","mouse","pair","bt",
+"n0","n1","n2","n3","n4","n5","n6","n7","n8","n9","dot","dash",
+"red","grn","yel","blu","lite","slp","tmr","fan","tempup","tempdn","mode","auto",
+"cool","heat","dry","swng","eco","turbo","frz","zmin","zout","focin","focout",
+"asp","proj","tv","game","a","b","x","y","blank","repeat","shuf","fav","brip","brim","lastch","eject"};
+
 uint8_t ui_icon_count(void){return (uint8_t)UiIconCount;}
 const char* ui_icon_name(UiIcon icon){return icon<UiIconCount?names[icon]:"UNKNOWN";}
+
+bool ui_icon_lookup_id(const char* id, UiIcon* out) {
+    if(!id || !id[0] || !out) return false;
+    for(uint8_t i = 0; i < (uint8_t)UiIconCount; i++) {
+        if(strcmp(ids[i], id) == 0) {
+            *out = (UiIcon)i;
+            return true;
+        }
+    }
+    /* Backward-compatible aliases used by older layouts. */
+    if(strcmp(id, "src") == 0) { *out = UiIconInput; return true; }
+    if(strcmp(id, "app") == 0) { *out = UiIconApps; return true; }
+    if(strcmp(id, "sleep") == 0) { *out = UiIconSleep; return true; }
+    if(strcmp(id, "zoom") == 0) { *out = UiIconZoomIn; return true; }
+    if(strcmp(id, "focs") == 0) { *out = UiIconFocusIn; return true; }
+    return false;
+}
 
 void ui_icon_draw(Canvas* canvas,UiIcon icon,int16_t x,int16_t y,Color color){
     const int16_t cx=x+9, cy=y+9;

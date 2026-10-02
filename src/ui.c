@@ -3,6 +3,7 @@
 #include "editor_model.h"
 #include "icon_library.h"
 #include "layout_library.h"
+#include "ui_icons.h"
 
 #include <gui/canvas.h>
 #include <stdio.h>
@@ -211,6 +212,12 @@ static void draw_icon_id(
     int16_t cy,
     Color color,
     const char* fallback) {
+    UiIcon pixel_icon;
+    if(ui_icon_lookup_id(id, &pixel_icon)) {
+        ui_icon_draw(canvas, pixel_icon, cx - 9, cy - 9, color);
+        return;
+    }
+
     const UniIconDef* icon = uni_icon_find(id);
     if(icon) draw_icon_kind(canvas, icon->kind, icon->short_label, cx, cy, color);
     else if(fallback && fallback[0]) text_center3(canvas, fallback, cx, cy-2, color);
