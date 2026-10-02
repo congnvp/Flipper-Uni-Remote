@@ -493,7 +493,7 @@ static void draw_about(Canvas* canvas) {
     text_center3(canvas, "UNI REMOTE", 32, 39, ColorBlack);
     text_center3(canvas, "V0.1.0 DEV", 32, 54, ColorBlack);
     text_center3(canvas, "UI PROTOTYPE", 32, 69, ColorBlack);
-    text_center3(canvas, "6X3 GRID", 32, 84, ColorBlack);
+    text_center3(canvas, "8PX STATUS", 32, 84, ColorBlack);
     text_center3(canvas, "BACK TO RETURN", 32, 111, ColorBlack);
 }
 
@@ -508,46 +508,113 @@ static uint8_t runtime_page_count(const App* app) {
     }
 }
 
-static bool runtime_scroll_vertical(const App* app) {
-    return app->remotes[app->selected_remote].kind == RemoteAc ||
-           app->remotes[app->selected_remote].kind == RemoteGeneric;
+static void draw_status_ir(Canvas* canvas, int16_t x, int16_t y) {
+    /* 7x7 IR/emit icon. */
+    pset(canvas, x, y + 3, ColorBlack);
+    vline(canvas, x + 2, y + 2, 3, ColorBlack);
+    pset(canvas, x + 3, y + 1, ColorBlack);
+    pset(canvas, x + 3, y + 5, ColorBlack);
+    pset(canvas, x + 4, y, ColorBlack);
+    pset(canvas, x + 4, y + 6, ColorBlack);
+    pset(canvas, x + 5, y + 1, ColorBlack);
+    pset(canvas, x + 5, y + 5, ColorBlack);
+    pset(canvas, x + 6, y + 3, ColorBlack);
+}
+
+static void draw_status_tv(Canvas* canvas, int16_t x, int16_t y) {
+    outline_rect(canvas, x, y, 7, 5, ColorBlack);
+    pset(canvas, x + 2, y + 5, ColorBlack);
+    pset(canvas, x + 4, y + 5, ColorBlack);
+    hline(canvas, x + 1, y + 6, 5, ColorBlack);
+}
+
+static void draw_status_snow(Canvas* canvas, int16_t x, int16_t y) {
+    const int16_t cx = x + 3;
+    const int16_t cy = y + 3;
+    hline(canvas, x, cy, 7, ColorBlack);
+    vline(canvas, cx, y, 7, ColorBlack);
+    pset(canvas, x + 1, y + 1, ColorBlack);
+    pset(canvas, x + 5, y + 5, ColorBlack);
+    pset(canvas, x + 5, y + 1, ColorBlack);
+    pset(canvas, x + 1, y + 5, ColorBlack);
+}
+
+static void draw_status_fan(Canvas* canvas, int16_t x, int16_t y) {
+    const int16_t cx = x + 3;
+    const int16_t cy = y + 3;
+    pset(canvas, cx, cy, ColorBlack);
+    hline(canvas, cx - 1, y, 3, ColorBlack);
+    vline(canvas, x + 6, cy - 1, 3, ColorBlack);
+    hline(canvas, cx - 1, y + 6, 3, ColorBlack);
+    vline(canvas, x, cy - 1, 3, ColorBlack);
+}
+
+static void draw_status_projector(Canvas* canvas, int16_t x, int16_t y) {
+    outline_rect(canvas, x, y + 1, 7, 5, ColorBlack);
+    outline_rect(canvas, x + 4, y + 2, 2, 2, ColorBlack);
+    pset(canvas, x + 1, y + 6, ColorBlack);
+    pset(canvas, x + 5, y + 6, ColorBlack);
+}
+
+static void draw_status_generic(Canvas* canvas, int16_t x, int16_t y) {
+    pset(canvas, x + 1, y + 1, ColorBlack);
+    pset(canvas, x + 5, y + 1, ColorBlack);
+    pset(canvas, x + 1, y + 5, ColorBlack);
+    pset(canvas, x + 5, y + 5, ColorBlack);
+    outline_rect(canvas, x, y, 7, 7, ColorBlack);
+}
+
+static void draw_status_bar(Canvas* canvas, const App* app) {
+    /* Full 64x8 usable area; intentionally no border. */
+    draw_status_ir(canvas, 1, 0);
+
+    switch(app->remotes[app->selected_remote].kind) {
+    case RemoteAc:
+        draw_status_snow(canvas, 11, 0);
+        text3(canvas, "23", 20, 1, ColorBlack);
+        draw_status_fan(canvas, 30, 0);
+        text3(canvas, "3", 39, 1, ColorBlack);
+        break;
+    case RemoteProjector:
+        draw_status_projector(canvas, 11, 0);
+        text3(canvas, "PJ", 20, 1, ColorBlack);
+        break;
+    case RemoteGeneric:
+        draw_status_generic(canvas, 11, 0);
+        text3(canvas, "GEN", 20, 1, ColorBlack);
+        break;
+    case RemoteTv:
+    default:
+        draw_status_tv(canvas, 11, 0);
+        text3(canvas, "TV", 20, 1, ColorBlack);
+        break;
+    }
+
+    /* Page number is demo-only so page changes are obvious during hardware testing. */
+    char page_text[4] = {'P', (char)('1' + app->runtime_page), '\0', '\0'};
+    int16_t tw = text_width3(page_text);
+    text3(canvas, page_text, 63 - tw, 1, ColorBlack);
 }
 
 static void draw_page_indicator(Canvas* canvas, const App* app) {
     const uint8_t count = runtime_page_count(app);
     if(count == 0) return;
 
+    /* All four rightmost columns belong to page navigation. */
     const uint8_t gap = 2;
     const uint8_t total = (uint8_t)(count + (count - 1) * gap + 1);
+    int16_t y = 8 + (120 - total) / 2;
+    const int16_t x = 61;
 
-    if(runtime_scroll_vertical(app)) {
-        /* Right 2px rail: inactive = 1x1, active = 1x2. */
-        int16_t y = 1 + (119 - total) / 2;
-        const int16_t x = 61;
-        for(uint8_t i = 0; i < count; i++) {
-            if(i == app->runtime_page) {
-                vline(canvas, x, y, 2, ColorBlack);
-                y += 2;
-            } else {
-                pset(canvas, x, y, ColorBlack);
-                y += 1;
-            }
-            if(i + 1 < count) y += gap;
+    for(uint8_t i = 0; i < count; i++) {
+        if(i == app->runtime_page) {
+            vline(canvas, x, y, 2, ColorBlack);
+            y += 2;
+        } else {
+            pset(canvas, x, y, ColorBlack);
+            y += 1;
         }
-    } else {
-        /* Bottom 2px rail: inactive = 1x1, active = 2x1. */
-        int16_t x = 1 + (59 - total) / 2;
-        const int16_t y = 121;
-        for(uint8_t i = 0; i < count; i++) {
-            if(i == app->runtime_page) {
-                hline(canvas, x, y, 2, ColorBlack);
-                x += 2;
-            } else {
-                pset(canvas, x, y, ColorBlack);
-                x += 1;
-            }
-            if(i + 1 < count) x += gap;
-        }
+        if(i + 1 < count) y += gap;
     }
 }
 
@@ -555,16 +622,17 @@ static void draw_grid(Canvas* canvas, const App* app, bool editor) {
     const char** labels = grid_for_remote(app);
 
     /*
-     * Exact test geometry requested:
-     * X: 1 + 3*(19 + 1) + 2(page rail) + 1 = 64.
-     * Y: 1 + 6*(19 + 1) + 2(page rail) + 1 = 124.
-     * The remaining four portrait pixels (y=124..127) stay outside this frame.
+     * Final demo geometry:
+     * Y: 8 status + 6*(19 cell + 1 separator) = 128.
+     * X: 3*(19 cell + 1 separator) + 4 page-navigation columns = 64.
      */
+    draw_status_bar(canvas, app);
+
     for(uint8_t row = 0; row < 6; row++) {
         for(uint8_t col = 0; col < 3; col++) {
             uint8_t i = row * 3 + col;
-            int16_t x = 1 + col * 20;
-            int16_t y = 1 + row * 20;
+            int16_t x = col * 20;
+            int16_t y = 8 + row * 20;
             bool active = i == app->grid_focus;
 
             if(active) fill_rect(canvas, x, y, 19, 19, ColorBlack);
@@ -572,29 +640,22 @@ static void draw_grid(Canvas* canvas, const App* app, bool editor) {
         }
     }
 
-    /* Top/left border, then shared 1px separators around 19x19 cells. */
-    hline(canvas, 0, 0, 64, ColorBlack);
-    vline(canvas, 0, 0, 124, ColorBlack);
+    /* Shared 1px separators. Status bar itself remains borderless. */
+    vline(canvas, 19, 8, 120, ColorBlack);
+    vline(canvas, 39, 8, 120, ColorBlack);
+    vline(canvas, 59, 8, 120, ColorBlack);
 
-    vline(canvas, 20, 0, 121, ColorBlack);
-    vline(canvas, 40, 0, 121, ColorBlack);
-    vline(canvas, 60, 0, 124, ColorBlack);
-
-    hline(canvas, 0, 20, 61, ColorBlack);
-    hline(canvas, 0, 40, 61, ColorBlack);
-    hline(canvas, 0, 60, 61, ColorBlack);
-    hline(canvas, 0, 80, 61, ColorBlack);
-    hline(canvas, 0, 100, 61, ColorBlack);
-    hline(canvas, 0, 120, 64, ColorBlack);
-
-    /* 2px rails: x=61..62 for vertical paging, y=121..122 for horizontal paging. */
-    vline(canvas, 63, 0, 124, ColorBlack);
-    hline(canvas, 0, 123, 64, ColorBlack);
+    hline(canvas, 0, 27, 60, ColorBlack);
+    hline(canvas, 0, 47, 60, ColorBlack);
+    hline(canvas, 0, 67, 60, ColorBlack);
+    hline(canvas, 0, 87, 60, ColorBlack);
+    hline(canvas, 0, 107, 60, ColorBlack);
+    hline(canvas, 0, 127, 60, ColorBlack);
 
     if(!editor) draw_page_indicator(canvas, app);
 
     if(editor) {
-        text3(canvas, app->layout_move ? "MV" : "ED", 48, 121, ColorBlack);
+        text3(canvas, app->layout_move ? "MV" : "ED", 48, 1, ColorBlack);
     }
 }
 
@@ -706,28 +767,15 @@ static void runtime_grid_move(App* app, UiKey key) {
     uint8_t col = app->grid_focus % 3;
     const uint8_t pages = runtime_page_count(app);
 
-    if(runtime_scroll_vertical(app)) {
-        if(key == KeyDown && row == 5) {
-            app->runtime_page = (app->runtime_page + 1) % pages;
-            app->grid_focus = col;
-            return;
-        }
-        if(key == KeyUp && row == 0) {
-            app->runtime_page = app->runtime_page == 0 ? pages - 1 : app->runtime_page - 1;
-            app->grid_focus = 15 + col;
-            return;
-        }
-    } else {
-        if(key == KeyRight && col == 2) {
-            app->runtime_page = (app->runtime_page + 1) % pages;
-            app->grid_focus = row * 3;
-            return;
-        }
-        if(key == KeyLeft && col == 0) {
-            app->runtime_page = app->runtime_page == 0 ? pages - 1 : app->runtime_page - 1;
-            app->grid_focus = row * 3 + 2;
-            return;
-        }
+    if(key == KeyDown && row == 5) {
+        app->runtime_page = (app->runtime_page + 1) % pages;
+        app->grid_focus = col;
+        return;
+    }
+    if(key == KeyUp && row == 0) {
+        app->runtime_page = app->runtime_page == 0 ? pages - 1 : app->runtime_page - 1;
+        app->grid_focus = 15 + col;
+        return;
     }
 
     grid_move(app, key);
