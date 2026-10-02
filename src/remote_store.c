@@ -1,4 +1,5 @@
 #include "remote_store.h"
+#include "builtin_profiles.h"
 
 #include <flipper_format/flipper_format.h>
 #include <furi.h>
@@ -579,6 +580,7 @@ bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
     scan_remotes(store);
     if(store->count == 0) {
         ensure_default_package(storage);
+        uni_builtin_profiles_seed(storage);
         scan_remotes(store);
     }
     return store->count > 0;

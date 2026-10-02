@@ -7,7 +7,7 @@
 #include <storage/storage.h>
 
 #define UNI_MAX_SIGNALS 32
-#define UNI_MAX_ACTIONS 16
+#define UNI_MAX_ACTIONS 32
 #define UNI_MAX_SEQUENCE_STEPS 8
 #define UNI_ACTION_ID_MAX 24
 #define UNI_SIGNAL_NAME_MAX 32
