@@ -293,21 +293,27 @@ static void handle_dpad(
         return;
     }
 
+    const char* hold = dpad_hold_binding(element, key);
+    const bool has_hold = hold && hold[0];
+
+    /*
+     * If a separate hold action exists, defer the normal action until Short.
+     * This prevents a long press from firing the normal action first.
+     */
     if(input_type == InputTypePress) {
-        emit(controller, dpad_direction_binding(element, key, false), false);
+        if(!has_hold) emit(controller, dpad_direction_binding(element, key, false), false);
+    } else if(input_type == InputTypeShort) {
+        if(has_hold) emit(controller, dpad_direction_binding(element, key, false), false);
     } else if(input_type == InputTypeLong) {
-        const char* hold = dpad_hold_binding(element, key);
-        if(hold && hold[0]) {
+        if(has_hold) {
             controller->dpad_hold_key = key;
             emit(controller, hold, false);
         }
     } else if(input_type == InputTypeRepeat && repeat_enabled) {
-        const bool using_hold = controller->dpad_hold_key == key &&
-                                dpad_hold_binding(element, key)[0];
+        const bool using_hold = controller->dpad_hold_key == key && has_hold;
         emit(
             controller,
-            using_hold ? dpad_hold_binding(element, key) :
-                         dpad_direction_binding(element, key, false),
+            using_hold ? hold : dpad_direction_binding(element, key, false),
             true);
     }
 }
