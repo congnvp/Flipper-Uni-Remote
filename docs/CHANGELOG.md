@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.1] - 2026-10-02
+
+### Fixed
+
+- Prevented out-of-memory reboot by lazily loading element/layout data for only the active remote.
+- Remote chooser now keeps lightweight metadata for all remotes instead of 12 full 18-element profiles in RAM.
+- Full element memory is released when returning to the chooser or when another remote is loaded.
+
+
 ## [0.4.0] - 2026-10-02
 
 ### Added
