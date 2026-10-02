@@ -2,6 +2,7 @@
 
 #include "ir_transport.h"
 #include "remote.h"
+#include "stateful_ir.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <storage/storage.h>
@@ -39,11 +40,13 @@ typedef struct {
 typedef struct {
     Storage* storage;
     UniIrTransport* ir;
+    UniStatefulIr* stateful;
     UniSignalCatalog signals;
     UniActionCatalog actions;
 } UniActionEngine;
 
 void uni_action_engine_init(UniActionEngine* engine, Storage* storage, UniIrTransport* ir);
+void uni_action_engine_deinit(UniActionEngine* engine);
 bool uni_action_engine_load(UniActionEngine* engine, const UniRemote* remote);
 bool uni_action_engine_execute(
     UniActionEngine* engine,
@@ -52,3 +55,7 @@ bool uni_action_engine_execute(
     bool repeat);
 
 const UniNamedAction* uni_action_find(const UniActionCatalog* catalog, const char* id);
+
+size_t uni_action_engine_state_action_count(const UniActionEngine* engine);
+const char* uni_action_engine_state_action_name(const UniActionEngine* engine, size_t index);
+void uni_action_engine_status(const UniActionEngine* engine, char* out, size_t out_size);
