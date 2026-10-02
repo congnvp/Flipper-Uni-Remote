@@ -419,17 +419,17 @@ static void draw_layout_editor(Canvas* canvas,const UniUiState* state) {
 }
 
 static void draw_layout_tools(Canvas* canvas,const UniUiState* state) {
-    static const char* labels[]={"ADD","REMOVE","MAP","ICON","TEMPLATE","DONE"};
+    static const char* labels[]={"ADD","REPLACE","REMOVE","MAP","ICON","TEMPLATE","DONE"};
     draw_menu_header(canvas,"LAYOUT TOOLS");
-    const size_t start=scroll_start(state->menu_index,6);
+    const size_t start=scroll_start(state->menu_index,7);
     for(size_t row=0;row<5;row++) {
-        const size_t i=start+row; if(i>=6) break;
+        const size_t i=start+row; if(i>=7) break;
         draw_menu_row(canvas,24+(int16_t)row*19,labels[i],"",i==state->menu_index);
     }
 }
 
 static void draw_add_element(Canvas* canvas,const UniUiState* state) {
-    draw_menu_header(canvas,"ADD ELEMENT");
+    draw_menu_header(canvas,state->layout_replace_mode?"REPLACE WITH":"ADD ELEMENT");
     const size_t count=uni_element_preset_count(),start=scroll_start(state->menu_index,count);
     for(size_t row=0;row<5 && start+row<count;row++) {
         const size_t i=start+row;
