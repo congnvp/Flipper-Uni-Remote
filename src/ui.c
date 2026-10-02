@@ -515,9 +515,25 @@ static void draw_map_field(Canvas* canvas,const UniUiState* state) {
 }
 
 static void draw_map_kind(Canvas* canvas,const UniUiState* state) {
-    static const char* labels[]={"SIGNAL","SEQUENCE","CLEAR","BACK"};
     draw_menu_header(canvas,"ACTION TYPE");
-    for(size_t i=0;i<4;i++) draw_menu_row(canvas,26+(int16_t)i*21,labels[i],"",i==state->menu_index);
+    const bool stateful =
+        state->remote && state->remote->transport == UniTransportStatefulIr;
+    const bool bluetooth =
+        state->remote && state->remote->transport == UniTransportBluetoothHid;
+
+    if(stateful) {
+        static const char* labels[]={"STATE","CLEAR","BACK"};
+        for(size_t i=0;i<3;i++)
+            draw_menu_row(canvas,26+(int16_t)i*21,labels[i],"",i==state->menu_index);
+    } else if(bluetooth) {
+        static const char* labels[]={"CLEAR","BACK"};
+        for(size_t i=0;i<2;i++)
+            draw_menu_row(canvas,26+(int16_t)i*21,labels[i],"",i==state->menu_index);
+    } else {
+        static const char* labels[]={"SIGNAL","SEQUENCE","CLEAR","BACK"};
+        for(size_t i=0;i<4;i++)
+            draw_menu_row(canvas,26+(int16_t)i*21,labels[i],"",i==state->menu_index);
+    }
 }
 
 static size_t sequence_count(const UniActionCatalog* catalog) {
@@ -537,19 +553,35 @@ static const UniNamedAction* sequence_at(const UniActionCatalog* catalog,size_t 
 
 static void draw_map_pick(Canvas* canvas,const UniUiState* state) {
     const bool signal=state->picker_kind==UniPickSignal;
-    draw_menu_header(canvas,signal?"SIGNAL":"SEQUENCE");
-    const size_t count=signal?state->action_engine->signals.count:sequence_count(&state->action_engine->actions);
+    const bool sequence=state->picker_kind==UniPickSequence;
+    draw_menu_header(canvas,signal?"SIGNAL":(sequence?"SEQUENCE":"STATE ACTION"));
+
+    const size_t count=signal?
+        state->action_engine->signals.count:
+        (sequence?
+            sequence_count(&state->action_engine->actions):
+            uni_action_engine_state_action_count(state->action_engine));
+
     if(count==0) { text_center3(canvas,"EMPTY",32,58,ColorBlack); return; }
     const size_t start=scroll_start(state->menu_index,count);
     for(size_t row=0;row<5 && start+row<count;row++) {
         const size_t i=start+row;
         const char* name="";
-        if(signal) name=state->action_engine->signals.names[i];
-        else {
+        if(signal) {
+            name=state->action_engine->signals.names[i];
+        } else if(sequence) {
             const UniNamedAction* a=sequence_at(&state->action_engine->actions,i);
             name=a?a->id:"";
+        } else {
+            const char* a=uni_action_engine_state_action_name(state->action_engine,i);
+            name=a?a:"";
         }
-        draw_menu_row(canvas,24+(int16_t)row*19,name,signal?"SIG":"SEQ",i==state->menu_index);
+        draw_menu_row(
+            canvas,
+            24+(int16_t)row*19,
+            name,
+            signal?"SIG":(sequence?"SEQ":"STATE"),
+            i==state->menu_index);
     }
 }
 
