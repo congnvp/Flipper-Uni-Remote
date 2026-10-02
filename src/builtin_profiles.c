@@ -233,7 +233,7 @@ static void add_button(FuriString* s,size_t i,const BuiltinButton* b) {
 }
 
 static bool write_remote(Storage* storage,const BuiltinProfile* p,const char* dir) {
-    char path[192];
+    char path[256];
     snprintf(path,sizeof(path),"%s/remote.ur",dir);
     if(storage_file_exists(storage,path)) return true;
 
@@ -256,7 +256,7 @@ static bool write_remote(Storage* storage,const BuiltinProfile* p,const char* di
 
 static bool write_sony_actions(Storage* storage,const BuiltinProfile* p,const char* dir) {
     if(!p->sony_burst) return true;
-    char path[192];
+    char path[256];
     snprintf(path,sizeof(path),"%s/actions.ur",dir);
     if(storage_file_exists(storage,path)) return true;
 
@@ -295,7 +295,7 @@ bool uni_builtin_profiles_seed(Storage* storage) {
         storage_common_mkdir(storage,dir);
         if(!write_remote(storage,p,dir)) ok=false;
         if(p->signals) {
-            char sp[192];
+            char sp[256];
             snprintf(sp,sizeof(sp),"%s/signals.ir",dir);
             if(!storage_file_exists(storage,sp) && !write_text(storage,sp,p->signals)) ok=false;
         }
