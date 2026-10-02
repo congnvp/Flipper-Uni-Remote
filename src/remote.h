@@ -5,7 +5,8 @@
 #include <stdint.h>
 
 #define UNI_MAX_REMOTES 12
-#define UNI_MAX_ELEMENTS 18
+#define UNI_MAX_ELEMENTS 54
+#define UNI_MAX_PAGES 4
 #define UNI_ID_MAX 24
 #define UNI_NAME_MAX 32
 #define UNI_LABEL_MAX 12
@@ -13,6 +14,7 @@
 #define UNI_PATH_MAX 160
 #define UNI_BT_PROFILE_MAX 24
 #define UNI_ICON_ID_MAX 9
+#define UNI_STATE_DRIVER_MAX 24
 
 typedef enum {
     UniTransportInfrared,
@@ -41,6 +43,7 @@ typedef enum {
 typedef struct {
     char id[UNI_ID_MAX];
     UniElementType type;
+    uint8_t page;
     uint8_t x;
     uint8_t y;
     uint8_t w;
@@ -79,12 +82,16 @@ typedef struct {
     UniTransport transport;
     uint32_t order;
     bool repeat_enabled;
+    uint8_t page_count;
 
     char config_path[UNI_PATH_MAX];
     char signal_file[64];
     char action_file[64];
     char signal_path[UNI_PATH_MAX];
     char action_path[UNI_PATH_MAX];
+    char state_file[64];
+    char state_path[UNI_PATH_MAX];
+    char state_driver[UNI_STATE_DRIVER_MAX];
 
     char bluetooth_profile[UNI_BT_PROFILE_MAX];
     char hard_bindings[UniHardCount][UNI_BINDING_MAX];
