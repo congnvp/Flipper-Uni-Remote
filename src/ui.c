@@ -262,9 +262,10 @@ static void draw_screen(Canvas* canvas, const UniUiState* state, const UniElemen
 }
 
 static void draw_button(
-    Canvas* canvas,const UniElement* e,int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
-    frame(canvas,x,y,w-1,h-1,focused);
-    const Color color=focused?ColorWhite:ColorBlack;
+    Canvas* canvas,const UniElement* e,int16_t x,int16_t y,int16_t w,int16_t h,bool focused,bool pressed) {
+    const bool inverted = focused && !pressed;
+    frame(canvas,x,y,w-1,h-1,inverted);
+    const Color color=inverted?ColorWhite:ColorBlack;
     if(e->icon[0]) draw_icon_id(canvas,e->icon,x+w/2,y+h/2,color,e->label);
     else text_center3(canvas,e->label,x+w/2,y+h/2-2,color);
 }
@@ -340,7 +341,9 @@ static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
     switch(e->type) {
     case UniElementStatus: break;
     case UniElementScreen: draw_screen(canvas,state,e); break;
-    case UniElementButton: draw_button(canvas,e,x,y,w,h,focused); break;
+    case UniElementButton:
+        draw_button(canvas,e,x,y,w,h,focused,focused && state->button_pressed);
+        break;
     case UniElementHStep: draw_hstep(canvas,e,x,y,w,h,focused); break;
     case UniElementVStep: draw_vstep(canvas,e,x,y,w,h,focused); break;
     case UniElementDpad: draw_dpad(canvas,state,e,x,y,w,h,focused); break;
