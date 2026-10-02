@@ -342,7 +342,6 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         ok = true;
     } while(false);
 
-done:
     flipper_format_file_close(ff);
     furi_string_free(filetype);
     flipper_format_free(ff);
