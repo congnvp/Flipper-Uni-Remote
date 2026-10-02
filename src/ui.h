@@ -47,6 +47,7 @@ typedef struct {
     const UniRemote* remote;
 
     size_t focus_index;
+    uint8_t runtime_page;
     bool dpad_captured;
     bool dpad_alt;
     UniKey dpad_hold_key;
