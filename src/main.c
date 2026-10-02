@@ -43,6 +43,7 @@ typedef enum {
     ScreenConfirmDuplicate,
     ScreenConfirmDelete,
     ScreenInfo,
+    ScreenIconDemo,
 } Screen;
 
 typedef enum {
