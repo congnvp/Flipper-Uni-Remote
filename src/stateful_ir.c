@@ -133,11 +133,16 @@ static void dk_state(const UniStateData* s,uint8_t o[DK_LEN]){
     o[16]=0x11;o[17]=0xDA;o[18]=0x27;o[21]=0x08;o[31]=0xC0;
     DateTime dt;furi_hal_rtc_get_datetime(&dt);uint16_t now=(uint16_t)(dt.hour*60U+dt.minute);
     o[13]=(uint8_t)now;o[14]=(uint8_t)((now>>8)&0x07U);
-    if(s->power)o[21]|=0x01U;o[21]|=(uint8_t)(dk_mode(s->mode)<<4);
+    if(s->power) {
+        o[21] |= 0x01U;
+    }
+    o[21] |= (uint8_t)(dk_mode(s->mode) << 4);
     o[22]=s->mode==0?s->temp_half:(s->mode==1?0xC0U:50U);
     uint8_t fn=s->mode==1?0xAU:dk_fan(s->fan);
     o[24]=(uint8_t)((fn<<4)|(s->swing_v?0x0FU:0));
-    o[26]=0;o[27]=0x60;o[28]=0x60;
+    o[26] = 0x00U;
+    o[27] = 0x06U;
+    o[28] = 0x60U;
     if((s->flags&F_POWERFUL)&&s->power)o[29]|=0x01U;
     o[7]=sum8(o,7);o[15]=sum8(o+8,7);o[34]=sum8(o+16,18);
 }
@@ -149,7 +154,11 @@ static void dk_section(uint32_t* t,uint16_t* p,const uint8_t* d,uint8_t n){
 }
 static void dk_send(const UniStateData* s){
     uint8_t d[DK_LEN];uint32_t t[DK_N];uint16_t p=0;dk_state(s,d);
-    for(uint8_t i=0;i<5;i++)dk_bit(t,&p,false);t[p++]=428;t[p++]=29428;
+    for(uint8_t i = 0; i < 5; i++) {
+        dk_bit(t, &p, false);
+    }
+    t[p++] = 428;
+    t[p++] = 29428;
     dk_section(t,&p,d,8);dk_section(t,&p,d+8,8);dk_section(t,&p,d+16,19);
     furi_check(p==DK_N);raw_send(t,DK_N,0.50f);
 }
@@ -187,8 +196,17 @@ static void pn_frame(const UniStateData* s,uint8_t o[27]){
     static const uint8_t fixed[27]={0x02,0x20,0xE0,0x04,0,0,0,0x06,0x02,0x20,0xE0,0x04,0,0x09,0x32,0x80,0xA2,0,0,0x0E,0xE0,0,0,0x89,0,0,0};
     memcpy(o,fixed,27);uint8_t mb=0x08;if(s->power)mb|=1;if(s->mode==1)mb|=0x30;else if(s->mode==2)mb|=0x20;
     o[13]=mb;o[14]=s->temp_half;o[16]=(uint8_t)((pn_fan(s->fan)<<4)|pn_swing(s->swing_v));
-    if(s->fan==0)o[21]|=0x20;else if(s->option==1)o[21]|=1;
-    if(s->option==2)o[25]|=0x10;if(s->flags&F_AUX)o[25]|=0x06;
+    if(s->fan == 0) {
+        o[21] |= 0x20U;
+    } else if(s->option == 1) {
+        o[21] |= 0x01U;
+    }
+    if(s->option == 2) {
+        o[25] |= 0x10U;
+    }
+    if(s->flags & F_AUX) {
+        o[25] |= 0x06U;
+    }
     o[26]=pn_sum(o,8,26);
 }
 static void pn_append_byte(uint32_t* t,size_t* p,uint8_t v){
@@ -229,7 +247,10 @@ static bool execute_daikin(UniStatefulEngine* e,const char* a){
     else if(strcmp(a,"powerful")==0){if(s->power)s->flags^=F_POWERFUL;else changed=false;}
     else if(strcmp(a,"resend")==0){}
     else changed=false;
-    if(changed)dk_send(s);return changed;
+    if(changed) {
+        dk_send(s);
+    }
+    return changed;
 }
 
 static bool execute_carrier(UniStatefulEngine* e,const char* a){
@@ -258,7 +279,10 @@ static bool execute_panasonic(UniStatefulEngine* e,const char* a){
     else if(strcmp(a,"extra+")==0||strcmp(a,"extra-")==0)s->option=(uint8_t)wrap((int)s->option+(a[5]=='+'?1:-1),3);
     else if(strcmp(a,"resend")==0){}
     else send=false;
-    if(send)pn_send(s);return send;
+    if(send) {
+        pn_send(s);
+    }
+    return send;
 }
 
 bool uni_stateful_execute(UniStatefulEngine* e,const UniRemote* r,const char* binding,bool repeat){
@@ -272,11 +296,20 @@ bool uni_stateful_execute(UniStatefulEngine* e,const UniRemote* r,const char* bi
     case UniStateProfilePanasonicAc:ok=execute_panasonic(e,a);break;
     default:break;
     }
-    if(ok)save_state(e);return ok;
+    if(ok) {
+        save_state(e);
+    }
+    return ok;
 }
 
 void uni_stateful_format_status(const UniStatefulEngine* e,char* out,size_t n){
-    if(!out||n==0){return;}out[0]='\0';if(!e||!e->opened)return;
+    if(!out || n == 0) {
+        return;
+    }
+    out[0] = '\0';
+    if(!e || !e->opened) {
+        return;
+    }
     const UniStateData* s=&e->state;
     const unsigned whole=s->temp_half/2U;const unsigned half=(s->temp_half&1U)?5U:0U;
     if(e->profile==UniStateProfilePanasonicAc)
