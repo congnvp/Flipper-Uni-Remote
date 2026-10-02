@@ -32,6 +32,11 @@ bool uni_remote_store_add_element(
     size_t remote_index,
     size_t preset_index,
     size_t* new_index);
+bool uni_remote_store_replace_element(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    size_t preset_index);
 bool uni_remote_store_remove_element(
     UniRemoteStore* store,
     size_t remote_index,
