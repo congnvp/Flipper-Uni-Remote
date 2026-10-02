@@ -3,13 +3,15 @@
 #include "editor_model.h"
 #include "icon_library.h"
 #include "layout_library.h"
+#include "ui_icons.h"
 
 #include <gui/canvas.h>
 #include <stdio.h>
 #include <string.h>
 
-static const uint8_t grid_x[] = {0, 21, 42, 64};
-static const uint8_t grid_y[] = {0, 21, 42, 64, 85, 106, 128};
+/* 64x128 portrait: 8px fixed status, 3*(19+1) controls, 4px page rail. */
+static const uint8_t grid_x[] = {0, 20, 40, 60};
+static const uint8_t grid_y[] = {8, 28, 48, 68, 88, 108, 128};
 
 static void pset(Canvas* canvas, int16_t x, int16_t y, Color color) {
     if(x < 0 || x >= 64 || y < 0 || y >= 128) return;
@@ -211,6 +213,11 @@ static void draw_icon_id(
     int16_t cy,
     Color color,
     const char* fallback) {
+    UiIcon modern;
+    if(ui_icon_lookup(id, &modern)) {
+        ui_icon_draw(canvas, modern, cx - 9, cy - 9, color);
+        return;
+    }
     const UniIconDef* icon = uni_icon_find(id);
     if(icon) draw_icon_kind(canvas, icon->kind, icon->short_label, cx, cy, color);
     else if(fallback && fallback[0]) text_center3(canvas, fallback, cx, cy-2, color);
@@ -223,15 +230,18 @@ static void grid_rect(const UniElement* e, int16_t* x, int16_t* y, int16_t* w, i
     *h = grid_y[e->y + e->h] - *y;
 }
 
-static void draw_status(Canvas* canvas, const UniUiState* state, const UniElement* e) {
-    int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
-    frame(canvas,x+1,y+1,w-2,h-2,false);
-    text3(canvas,uni_transport_label(state->remote->transport),x+4,y+8,ColorBlack);
-    text_center3(canvas,state->remote->short_name,x+w/2,y+8,ColorBlack);
+static void draw_status(Canvas* canvas, const UniUiState* state) {
+    /* Fixed 64x8 status bar, deliberately borderless. */
+    if(!state->remote) return;
+    text3(canvas, uni_transport_label(state->remote->transport), 0, 1, ColorBlack);
+    char short_name[4] = {0};
+    snprintf(short_name, sizeof(short_name), "%.3s", state->remote->short_name);
+    text_center3(canvas, short_name, 31, 1, ColorBlack);
+
     const char* right = state->tx_flash ? "TX" : (state->tx_ok ? "--" : "ER");
     if(state->dpad_captured && state->dpad_alt) right = "AL";
     if(state->page == UniUiLayoutEditor) right = state->layout_moving ? "MV" : "ED";
-    text3(canvas,right,x+w-12,y+8,ColorBlack);
+    text3(canvas, right, 55, 1, ColorBlack);
 }
 
 static void draw_screen(Canvas* canvas, const UniUiState* state, const UniElement* e) {
@@ -253,7 +263,7 @@ static void draw_screen(Canvas* canvas, const UniUiState* state, const UniElemen
 
 static void draw_button(
     Canvas* canvas,const UniElement* e,int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
-    frame(canvas,x+1,y+1,w-2,h-2,focused);
+    frame(canvas,x,y,w-1,h-1,focused);
     const Color color=focused?ColorWhite:ColorBlack;
     if(e->icon[0]) draw_icon_id(canvas,e->icon,x+w/2,y+h/2,color,e->label);
     else text_center3(canvas,e->label,x+w/2,y+h/2-2,color);
@@ -262,8 +272,8 @@ static void draw_button(
 static void draw_hstep(
     Canvas* canvas,const UniElement* e,int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
     const int16_t side=(w-4)/3, rx=x+w-side;
-    frame(canvas,x+1,y+1,side,h-2,focused);
-    frame(canvas,rx-1,y+1,side,h-2,focused);
+    frame(canvas,x,y,side-1,h-1,focused);
+    frame(canvas,rx,y,side-1,h-1,focused);
     const Color color=focused?ColorWhite:ColorBlack;
     triangle(canvas,x+side/2+1,y+h/2,UniKeyLeft,color);
     triangle(canvas,rx+side/2-1,y+h/2,UniKeyRight,color);
@@ -274,8 +284,8 @@ static void draw_vstep(
     Canvas* canvas,const UniElement* e,int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
     int16_t bh=15; if(h<39) bh=(h-9)/2;
     const int16_t by=y+h-bh-1;
-    frame(canvas,x+1,y+1,w-2,bh,focused);
-    frame(canvas,x+1,by,w-2,bh,focused);
+    frame(canvas,x,y,w-1,bh,focused);
+    frame(canvas,x,by,w-1,bh,focused);
     const Color color=focused?ColorWhite:ColorBlack;
     triangle(canvas,x+w/2,y+1+bh/2,UniKeyUp,color);
     triangle(canvas,x+w/2,by+bh/2,UniKeyDown,color);
@@ -327,7 +337,7 @@ static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
     const bool focused=uni_element_focusable(e)&&index==state->focus_index;
     int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
     switch(e->type) {
-    case UniElementStatus: draw_status(canvas,state,e); break;
+    case UniElementStatus: break;
     case UniElementScreen: draw_screen(canvas,state,e); break;
     case UniElementButton: draw_button(canvas,e,x,y,w,h,focused); break;
     case UniElementHStep: draw_hstep(canvas,e,x,y,w,h,focused); break;
@@ -338,20 +348,24 @@ static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
 
 static void draw_remote(Canvas* canvas,const UniUiState* state) {
     if(!state->remote) return;
+    draw_status(canvas, state);
     for(size_t i=0;i<state->remote->element_count;i++) draw_element(canvas,state,i);
+    /* One-page build: page rail still reserves the agreed 4px and shows active page. */
+    vline(canvas, 61, 67, 2, ColorBlack);
 }
 
 static void draw_menu_header(Canvas* canvas,const char* title) {
-    frame(canvas,1,1,62,19,false); text_center3(canvas,title,32,8,ColorBlack);
+    text_center3(canvas,title,32,4,ColorBlack);
+    hline(canvas,2,13,60,ColorBlack);
 }
 
 static void draw_menu_row(Canvas* canvas,int16_t y,const char* label,const char* value,bool active) {
-    frame(canvas,3,y,58,17,active);
+    if(active) fill_rect(canvas,2,y,60,12,ColorBlack);
     const Color color=active?ColorWhite:ColorBlack;
-    text3(canvas,label,7,y+6,color);
+    text3(canvas,label,5,y+4,color);
     if(value&&value[0]) {
         const int16_t tw=text_width3(value);
-        text3(canvas,value,57-tw,y+6,color);
+        text3(canvas,value,59-tw,y+4,color);
     }
 }
 
