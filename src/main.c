@@ -77,6 +77,7 @@ typedef struct {
     uint8_t runtime_page;
     uint8_t control_field;
     bool layout_move;
+    bool runtime_pressed;
 
     RemoteDef remotes[REMOTE_COUNT];
 } App;
@@ -418,8 +419,6 @@ static const char** grid_for_remote(const App* app) {
 }
 
 static void draw_home(Canvas* canvas, const App* app) {
-    triangle(canvas, 6, 8, KeyLeft, ColorBlack);
-    triangle(canvas, 58, 8, KeyRight, ColorBlack);
     text_center3(canvas, page_names[app->home_page], 32, 4, ColorBlack);
     hline(canvas, 2, 13, 60, ColorBlack);
 
@@ -590,10 +589,16 @@ static void draw_status_bar(Canvas* canvas, const App* app) {
         break;
     }
 
-    /* Page number is demo-only so page changes are obvious during hardware testing. */
-    char page_text[4] = {'P', (char)('1' + app->runtime_page), '\0', '\0'};
-    int16_t tw = text_width3(page_text);
-    text3(canvas, page_text, 63 - tw, 1, ColorBlack);
+    /* Right side shows live TX while OK is held; otherwise current page. */
+    if(app->runtime_pressed && app->screen == ScreenRuntime) {
+        const char* tx = "TX";
+        int16_t tw = text_width3(tx);
+        text3(canvas, tx, 63 - tw, 1, ColorBlack);
+    } else {
+        char page_text[4] = {'P', (char)('1' + app->runtime_page), '\0', '\0'};
+        int16_t tw = text_width3(page_text);
+        text3(canvas, page_text, 63 - tw, 1, ColorBlack);
+    }
 }
 
 static void draw_page_indicator(Canvas* canvas, const App* app) {
@@ -618,13 +623,33 @@ static void draw_page_indicator(Canvas* canvas, const App* app) {
     }
 }
 
+static void draw_button_boundary(
+    Canvas* canvas,
+    int16_t x,
+    int16_t y,
+    bool filled,
+    Color color) {
+    /* 19x19 near-square: each corner is clipped by one pixel. */
+    if(filled) {
+        hline(canvas, x + 1, y, 17, color);
+        fill_rect(canvas, x, y + 1, 19, 17, color);
+        hline(canvas, x + 1, y + 18, 17, color);
+    } else {
+        hline(canvas, x + 1, y, 17, color);
+        hline(canvas, x + 1, y + 18, 17, color);
+        vline(canvas, x, y + 1, 17, color);
+        vline(canvas, x + 18, y + 1, 17, color);
+    }
+}
+
 static void draw_grid(Canvas* canvas, const App* app, bool editor) {
     const char** labels = grid_for_remote(app);
 
     /*
-     * Final demo geometry:
-     * Y: 8 status + 6*(19 cell + 1 separator) = 128.
-     * X: 3*(19 cell + 1 separator) + 4 page-navigation columns = 64.
+     * Runtime geometry:
+     * Y: 8 status + 6*(19 button + 1 gap) = 128.
+     * X: 3*(19 button + 1 gap) + 4 page-navigation columns = 64.
+     * There are no shared grid lines; every control owns its 19x19 boundary.
      */
     draw_status_bar(canvas, app);
 
@@ -633,24 +658,15 @@ static void draw_grid(Canvas* canvas, const App* app, bool editor) {
             uint8_t i = row * 3 + col;
             int16_t x = col * 20;
             int16_t y = 8 + row * 20;
-            bool active = i == app->grid_focus;
+            bool focused = i == app->grid_focus;
+            bool pressed = focused && app->runtime_pressed && app->screen == ScreenRuntime;
+            bool filled = focused && !pressed;
+            Color icon_color = filled ? ColorWhite : ColorBlack;
 
-            if(active) fill_rect(canvas, x, y, 19, 19, ColorBlack);
-            draw_icon(canvas, labels[i], x, y, active ? ColorWhite : ColorBlack);
+            draw_button_boundary(canvas, x, y, filled, ColorBlack);
+            draw_icon(canvas, labels[i], x, y, icon_color);
         }
     }
-
-    /* Shared 1px separators. Status bar itself remains borderless. */
-    vline(canvas, 19, 8, 120, ColorBlack);
-    vline(canvas, 39, 8, 120, ColorBlack);
-    vline(canvas, 59, 8, 120, ColorBlack);
-
-    hline(canvas, 0, 27, 60, ColorBlack);
-    hline(canvas, 0, 47, 60, ColorBlack);
-    hline(canvas, 0, 67, 60, ColorBlack);
-    hline(canvas, 0, 87, 60, ColorBlack);
-    hline(canvas, 0, 107, 60, ColorBlack);
-    hline(canvas, 0, 127, 60, ColorBlack);
 
     if(!editor) draw_page_indicator(canvas, app);
 
@@ -811,6 +827,7 @@ static void handle_home(App* app, UiKey key) {
             app->selected_remote = page_remote_at(app, app->home_page, app->home_row);
             app->grid_focus = 0;
             app->runtime_page = 0;
+            app->runtime_pressed = false;
             app->screen = ScreenRuntime;
         }
     } else if(key == KeyBack) {
@@ -825,8 +842,12 @@ static void handle_short(App* app, UiKey key) {
     }
 
     if(app->screen == ScreenRuntime) {
-        if(key == KeyBack) app->screen = ScreenHome;
-        else if(key == KeyUp || key == KeyDown || key == KeyLeft || key == KeyRight) runtime_grid_move(app, key);
+        if(key == KeyBack) {
+            app->runtime_pressed = false;
+            app->screen = ScreenHome;
+        } else if(key == KeyUp || key == KeyDown || key == KeyLeft || key == KeyRight) {
+            runtime_grid_move(app, key);
+        }
         return;
     }
 
@@ -1062,6 +1083,21 @@ int32_t uni_remote_app(void* p) {
             if(furi_message_queue_get(app->queue, &event, FuriWaitForever) != FuriStatusOk) continue;
 
             UiKey key = map_key(event.key);
+
+            /*
+             * Remote buttons act on press, not release. For this UI-only build,
+             * holding OK keeps the focused button visually depressed and shows TX.
+             * A future IR core can transmit once on Press and repeat only for
+             * commands explicitly marked repeatable.
+             */
+            if(app->screen == ScreenRuntime && key == KeyOk) {
+                if(event.type == InputTypePress) {
+                    app->runtime_pressed = true;
+                } else if(event.type == InputTypeRelease) {
+                    app->runtime_pressed = false;
+                }
+            }
+
             if(key == KeyBack && event.type == InputTypeLong) {
                 app->running = false;
             } else if(event.type == InputTypeShort) {
