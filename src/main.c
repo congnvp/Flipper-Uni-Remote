@@ -6,6 +6,7 @@
 #include "layout_library.h"
 #include "remote_store.h"
 #include "settings.h"
+#include "stateful_ir.h"
 #include "ui.h"
 
 #include <furi.h>
@@ -78,9 +79,72 @@ static void load_actions_for_selected(UniApp* app) {
     if(remote) uni_action_engine_load(&app->actions, remote);
 }
 
+static void refresh_status_text(UniApp* app) {
+    app->ui.status_text[0] = '\0';
+    const UniRemote* remote = selected_remote(app);
+    if(!remote) return;
+
+    if(remote->transport != UniTransportStatefulIr) {
+        snprintf(app->ui.status_text, sizeof(app->ui.status_text), "%.3s", remote->short_name);
+        return;
+    }
+
+    UniAcState state;
+    if(!uni_stateful_ir_load_state(app->storage, remote, &state)) return;
+    if(!state.power) {
+        snprintf(app->ui.status_text, sizeof(app->ui.status_text), "OFF");
+        return;
+    }
+
+    char mode = 'A';
+    if(state.mode == UniAcModeCool) mode = 'C';
+    else if(state.mode == UniAcModeDry) mode = 'D';
+    else if(state.mode == UniAcModeFan) mode = 'F';
+    else if(state.mode == UniAcModeHeat) mode = 'H';
+
+    const bool panasonic = strcmp(remote->state_profile, "PANASONIC_RKR") == 0;
+    const bool fan_auto = panasonic ? state.fan == 6 : state.fan == 0;
+    if(state.temp_x2 & 1U) {
+        snprintf(
+            app->ui.status_text,
+            sizeof(app->ui.status_text),
+            "%c%u.5 F%s",
+            mode,
+            (unsigned)(state.temp_x2 / 2U),
+            fan_auto ? "A" : "");
+        if(!fan_auto) {
+            snprintf(
+                app->ui.status_text,
+                sizeof(app->ui.status_text),
+                "%c%u.5 F%u",
+                mode,
+                (unsigned)(state.temp_x2 / 2U),
+                (unsigned)state.fan);
+        }
+    } else {
+        snprintf(
+            app->ui.status_text,
+            sizeof(app->ui.status_text),
+            "%c%u F%s",
+            mode,
+            (unsigned)(state.temp_x2 / 2U),
+            fan_auto ? "A" : "");
+        if(!fan_auto) {
+            snprintf(
+                app->ui.status_text,
+                sizeof(app->ui.status_text),
+                "%c%u F%u",
+                mode,
+                (unsigned)(state.temp_x2 / 2U),
+                (unsigned)state.fan);
+        }
+    }
+}
+
 static void refresh_remote_pointer(UniApp* app) {
     if(app->ui.remote) app->ui.remote = selected_remote(app);
     load_actions_for_selected(app);
+    refresh_status_text(app);
 }
 
 static void open_remote(UniApp* app) {
@@ -91,6 +155,7 @@ static void open_remote(UniApp* app) {
     app->ui.page = UniUiRemote;
     app->ui.last_signal[0] = '\0';
     app->ui.tx_ok = true;
+    refresh_status_text(app);
     uni_controller_reset(&app->controller, app->ui.remote);
 }
 
@@ -210,6 +275,7 @@ static void dispatch_remote_action(UniApp* app) {
         app->controller.binding,
         app->controller.repeat);
     app->tx_flash_until = furi_get_tick() + furi_ms_to_ticks(220);
+    if(app->ui.remote->transport == UniTransportStatefulIr) refresh_status_text(app);
     app->controller.action_ready = false;
 }
 
