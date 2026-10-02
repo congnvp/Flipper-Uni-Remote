@@ -24,7 +24,7 @@ Elements store grid rectangles, never absolute pixels.
 - `button`: OK = Tap, Long OK = Hold.
 - `hstep`: Left/Right actions; Up/Down exits to another focusable element.
 - `vstep`: Up/Down actions; Left/Right exits to another focusable element.
-- `dpad`: auto-captures directions and OK while focused. Long Back releases capture.
+- `dpad`: auto-captures directions and OK while focused. Short Back releases capture and restores the prior focus.
 
 ## Focus
 
@@ -55,10 +55,36 @@ It must never be made configurable.
 
 ## Menu and layout editor
 
-Short Back opens the app Menu when not inside D-pad capture. Long Back remains system-reserved.
+Short Back opens the app Menu when not inside D-pad capture. Inside D-pad capture, Short Back releases capture and restores the element used to enter it. Long Back is always system-reserved.
 
 Layout Editor has two modes:
 - Select: directions move selection spatially between interactive elements.
 - Move: OK enters/leaves Move mode; directions move the selected element by one 3×6 grid cell.
 
 If the destination is occupied by exactly one element with identical dimensions, the elements swap positions. Invalid overlaps are rejected.
+
+
+## D-pad NORMAL / ALT
+
+D-pad normal directions are directional triangles. Optional hold bindings and hold icons may be configured per direction.
+
+If a hold binding exists, the normal direction action is emitted only after a short press is confirmed; a long press emits only the hold action.
+
+Double OK uses a 240 ms detection window:
+- first OK is held pending;
+- second OK inside the window toggles ALT and suppresses the pending OK;
+- otherwise the pending OK action is emitted after the window.
+
+ALT keeps focus captured and renders the configured HOLD icons. A short direction press in ALT executes the HOLD binding. Double OK returns to NORMAL.
+
+## Layout tools
+
+Short Back in Layout Editor opens:
+- Add
+- Remove
+- Map
+- Icon
+- Template
+- Done
+
+H-step and V-step directional icons are fixed. Button and D-pad hold/ALT icons come from the central icon library.
