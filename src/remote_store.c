@@ -321,19 +321,24 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         }
         remote->element_count = element_count;
 
+        char signal_file_copy[64];
+        char action_file_copy[64];
+        snprintf(signal_file_copy, sizeof(signal_file_copy), "%s", remote->signal_file);
+        snprintf(action_file_copy, sizeof(action_file_copy), "%s", remote->action_file);
+
         snprintf(remote->config_path, sizeof(remote->config_path), "%s", config_path);
         snprintf(
             remote->signal_path,
             sizeof(remote->signal_path),
             UNI_REMOTES_DIR "/%s/%s",
             folder,
-            remote->signal_file);
+            signal_file_copy);
         snprintf(
             remote->action_path,
             sizeof(remote->action_path),
             UNI_REMOTES_DIR "/%s/%s",
             folder,
-            remote->action_file);
+            action_file_copy);
         ok = true;
     } while(false);
 
