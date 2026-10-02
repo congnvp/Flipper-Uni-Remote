@@ -886,7 +886,8 @@ bool uni_remote_store_replace_element(
     UniRemoteStore* store,
     size_t remote_index,
     size_t element_index,
-    size_t preset_index) {
+    size_t preset_index,
+    size_t* result_index) {
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     const UniElementPreset* preset = uni_element_preset_get(preset_index);
@@ -917,7 +918,9 @@ bool uni_remote_store_replace_element(
             y);
     }
 
-    return uni_remote_store_save(store, remote_index);
+    const bool saved = uni_remote_store_save(store, remote_index);
+    if(saved && result_index) *result_index = element_index;
+    return saved;
 }
 
 bool uni_remote_store_remove_element(
