@@ -58,6 +58,7 @@ typedef struct {
     size_t menu_index;
     size_t layout_element;
     bool layout_moving;
+    bool layout_replace_mode;
 
     UniMapTarget map_target;
     UniPickerKind picker_kind;
