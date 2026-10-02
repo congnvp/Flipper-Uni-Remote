@@ -3,6 +3,7 @@
 #include <flipper_format/flipper_format.h>
 #include <furi.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define UNI_REMOTE_FILETYPE "Flipper Uni Remote"
@@ -316,10 +317,9 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
 
         if(!ff_read_u32(ff, "ElementCount", &element_count, true)) break;
         if(element_count > UNI_MAX_ELEMENTS) break;
-        for(uint32_t i = 0; i < element_count; i++) {
-            if(!load_element(ff, i, &remote->elements[i])) goto done;
-        }
         remote->element_count = element_count;
+        remote->elements = NULL;
+        remote->elements_loaded = false;
 
         char signal_file_copy[64];
         char action_file_copy[64];
@@ -362,6 +362,13 @@ static void sort_remotes(UniRemoteStore* store) {
 }
 
 static void scan_remotes(UniRemoteStore* store) {
+    for(size_t i = 0; i < UNI_MAX_REMOTES; i++) {
+        if(store->remotes[i].elements) {
+            free(store->remotes[i].elements);
+            store->remotes[i].elements = NULL;
+            store->remotes[i].elements_loaded = false;
+        }
+    }
     store->count = 0;
     File* dir = storage_file_alloc(store->storage);
     if(!dir) return;
@@ -430,7 +437,10 @@ static bool write_element(FlipperFormat* ff, size_t index, const UniElement* e) 
 
 bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
-    if(!store || !remote || !remote->config_path[0]) return false;
+    if(!store || !remote || !remote->config_path[0] || !remote->elements_loaded ||
+       !remote->elements) {
+        return false;
+    }
 
     FlipperFormat* ff = flipper_format_file_alloc(store->storage);
     if(!ff) return false;
@@ -472,6 +482,69 @@ bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
 done:
     flipper_format_file_close(ff);
     flipper_format_free(ff);
+    return ok;
+}
+
+
+void uni_remote_store_unload_details(UniRemoteStore* store, size_t remote_index) {
+    if(!store || remote_index >= store->count) return;
+    UniRemote* remote = &store->remotes[remote_index];
+    if(remote->elements) {
+        free(remote->elements);
+        remote->elements = NULL;
+    }
+    remote->elements_loaded = false;
+}
+
+bool uni_remote_store_load_details(UniRemoteStore* store, size_t remote_index) {
+    if(!store || remote_index >= store->count) return false;
+
+    UniRemote* remote = &store->remotes[remote_index];
+    if(remote->elements_loaded && remote->elements) return true;
+
+    /* Keep at most one full remote layout resident in RAM. */
+    for(size_t i = 0; i < store->count; i++) {
+        if(i != remote_index) uni_remote_store_unload_details(store, i);
+    }
+
+    UniElement* elements = calloc(UNI_MAX_ELEMENTS, sizeof(UniElement));
+    if(!elements) return false;
+
+    FlipperFormat* ff = flipper_format_file_alloc(store->storage);
+    if(!ff) {
+        free(elements);
+        return false;
+    }
+
+    FuriString* filetype = furi_string_alloc();
+    uint32_t version = 0;
+    uint32_t element_count = 0;
+    bool ok = false;
+
+    do {
+        if(!flipper_format_file_open_existing(ff, remote->config_path)) break;
+        if(!flipper_format_read_header(ff, filetype, &version)) break;
+        if(strcmp(furi_string_get_cstr(filetype), UNI_REMOTE_FILETYPE) != 0) break;
+        if(version != UNI_REMOTE_VERSION) break;
+        if(!ff_read_u32(ff, "ElementCount", &element_count, true)) break;
+        if(element_count > UNI_MAX_ELEMENTS) break;
+
+        for(uint32_t i = 0; i < element_count; i++) {
+            if(!load_element(ff, i, &elements[i])) goto done_details;
+        }
+
+        remote->elements = elements;
+        remote->element_count = element_count;
+        remote->elements_loaded = true;
+        elements = NULL;
+        ok = true;
+    } while(false);
+
+done_details:
+    flipper_format_file_close(ff);
+    furi_string_free(filetype);
+    flipper_format_free(ff);
+    if(elements) free(elements);
     return ok;
 }
 
@@ -518,6 +591,7 @@ size_t uni_remote_store_find_id(const UniRemoteStore* store, const char* id) {
 }
 
 bool uni_remote_store_set_repeat(UniRemoteStore* store, size_t remote_index, bool enabled) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     if(!remote) return false;
     remote->repeat_enabled = enabled;
@@ -557,6 +631,7 @@ bool uni_remote_store_move_element(
     size_t element_index,
     int8_t dx,
     int8_t dy) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     if(!remote || element_index >= remote->element_count) return false;
 
@@ -615,6 +690,7 @@ bool uni_remote_store_add_element(
     size_t remote_index,
     size_t preset_index,
     size_t* new_index) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     const UniElementPreset* preset = uni_element_preset_get(preset_index);
     if(!remote || !preset || remote->element_count >= UNI_MAX_ELEMENTS) return false;
@@ -646,6 +722,7 @@ bool uni_remote_store_remove_element(
     UniRemoteStore* store,
     size_t remote_index,
     size_t element_index) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     if(!remote || element_index >= remote->element_count) return false;
     for(size_t i = element_index; i + 1 < remote->element_count; i++) {
@@ -660,11 +737,12 @@ bool uni_remote_store_apply_layout(
     UniRemoteStore* store,
     size_t remote_index,
     size_t layout_index) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     const UniLayoutPreset* layout = uni_layout_preset_get(layout_index);
     if(!remote || !layout || layout->count > UNI_MAX_ELEMENTS) return false;
 
-    memset(remote->elements, 0, sizeof(remote->elements));
+    memset(remote->elements, 0, UNI_MAX_ELEMENTS * sizeof(UniElement));
     memcpy(remote->elements, layout->elements, layout->count * sizeof(UniElement));
     remote->element_count = layout->count;
     return uni_remote_store_save(store, remote_index);
@@ -692,6 +770,7 @@ bool uni_remote_store_set_binding(
     size_t element_index,
     const char* field,
     const char* binding) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     if(!remote || element_index >= remote->element_count || !field) return false;
     char* target = binding_field(&remote->elements[element_index], field);
@@ -717,6 +796,7 @@ bool uni_remote_store_set_icon(
     size_t element_index,
     const char* field,
     const char* icon_id) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     if(!remote || element_index >= remote->element_count || !field) return false;
     char* target = icon_field(&remote->elements[element_index], field);
@@ -730,6 +810,7 @@ bool uni_remote_store_set_hard_binding(
     size_t remote_index,
     UniHardKeySlot slot,
     const char* binding) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     if(!remote || slot >= UniHardCount) return false;
     snprintf(
