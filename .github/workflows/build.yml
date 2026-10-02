@@ -1,8 +1,10 @@
-name: FAP build
+name: Development FAP build
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "dev/**"
   pull_request:
   workflow_dispatch:
 
@@ -13,6 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "value=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
       - name: Check version files
         run: python3 tools/check_version.py
 
@@ -22,12 +29,13 @@ jobs:
         with:
           sdk-channel: release
 
-      - name: Upload FAP artifact
+      - name: Upload DEV FAP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: flipper-uni-remote-${{ steps.build.outputs.suffix }}
+          name: flipper-uni-remote-dev-v${{ steps.version.outputs.value }}-${{ steps.build.outputs.suffix }}
           path: ${{ steps.build.outputs.fap-artifacts }}
           if-no-files-found: error
+          retention-days: 30
 
       - name: Lint C sources (advisory)
         continue-on-error: true
