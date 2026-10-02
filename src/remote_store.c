@@ -597,29 +597,36 @@ bool uni_remote_store_set_repeat(UniRemoteStore* store, size_t remote_index, boo
     return uni_remote_store_save(store, remote_index);
 }
 
-static bool rects_overlap(
+static bool elements_overlap_at(
+    const UniElement* a,
     uint8_t ax,
     uint8_t ay,
-    uint8_t aw,
-    uint8_t ah,
+    const UniElement* b,
     uint8_t bx,
-    uint8_t by,
-    uint8_t bw,
-    uint8_t bh) {
-    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+    uint8_t by) {
+    if(!a || !b) return false;
+    for(uint8_t y = 0; y < 6; y++) {
+        for(uint8_t x = 0; x < 3; x++) {
+            if(uni_element_occupies_cell_at(a, ax, ay, x, y) &&
+               uni_element_occupies_cell_at(b, bx, by, x, y)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
-static bool rect_free(
+static bool element_free(
     const UniRemote* remote,
     size_t ignore,
+    const UniElement* candidate,
     uint8_t x,
-    uint8_t y,
-    uint8_t w,
-    uint8_t h) {
+    uint8_t y) {
+    if(!remote || !candidate) return false;
     for(size_t i = 0; i < remote->element_count; i++) {
         if(i == ignore) continue;
         const UniElement* e = &remote->elements[i];
-        if(rects_overlap(x, y, w, h, e->x, e->y, e->w, e->h)) return false;
+        if(elements_overlap_at(candidate, x, y, e, e->x, e->y)) return false;
     }
     return true;
 }
@@ -627,18 +634,18 @@ static bool rect_free(
 static bool find_nearest_free_position(
     const UniRemote* remote,
     size_t ignore,
-    uint8_t w,
-    uint8_t h,
+    const UniElement* candidate,
     uint8_t preferred_x,
     uint8_t preferred_y,
     uint8_t* out_x,
     uint8_t* out_y) {
+    if(!candidate) return false;
     bool found = false;
     uint16_t best_score = UINT16_MAX;
 
-    for(uint8_t y = 0; y + h <= 6; y++) {
-        for(uint8_t x = 0; x + w <= 3; x++) {
-            if(!rect_free(remote, ignore, x, y, w, h)) continue;
+    for(uint8_t y = 0; y + candidate->h <= 6; y++) {
+        for(uint8_t x = 0; x + candidate->w <= 3; x++) {
+            if(!element_free(remote, ignore, candidate, x, y)) continue;
             const uint16_t dx = x > preferred_x ? x - preferred_x : preferred_x - x;
             const uint16_t dy = y > preferred_y ? y - preferred_y : preferred_y - y;
             const uint16_t score = (uint16_t)(dx + dy);
@@ -703,11 +710,10 @@ static void remove_element_in_memory(UniRemote* remote, size_t index) {
 static void remove_overlaps(
     UniRemote* remote,
     size_t* protected_index,
+    const UniElement* candidate,
     uint8_t x,
-    uint8_t y,
-    uint8_t w,
-    uint8_t h) {
-    if(!remote) return;
+    uint8_t y) {
+    if(!remote || !candidate) return;
 
     size_t i = 0;
     while(i < remote->element_count) {
@@ -717,7 +723,7 @@ static void remove_overlaps(
         }
 
         const UniElement* e = &remote->elements[i];
-        if(!rects_overlap(x, y, w, h, e->x, e->y, e->w, e->h)) {
+        if(!elements_overlap_at(candidate, x, y, e, e->x, e->y)) {
             i++;
             continue;
         }
@@ -751,15 +757,13 @@ bool uni_remote_store_move_element(
         old_x[i] = remote->elements[i].x;
         old_y[i] = remote->elements[i].y;
         if(i != element_index &&
-           rects_overlap(
+           elements_overlap_at(
+               moving,
                (uint8_t)nx,
                (uint8_t)ny,
-               moving->w,
-               moving->h,
+               &remote->elements[i],
                remote->elements[i].x,
-               remote->elements[i].y,
-               remote->elements[i].w,
-               remote->elements[i].h)) {
+               remote->elements[i].y)) {
             collided[i] = true;
         }
     }
@@ -769,11 +773,6 @@ bool uni_remote_store_move_element(
     moving->x = (uint8_t)nx;
     moving->y = (uint8_t)ny;
 
-    /*
-     * Reflow collided elements into the nearest valid free rectangle, preferring
-     * the area vacated by the moving element. This allows 1x1 <-> 1x2/2x1
-     * exchanges and region swaps without requiring equal dimensions.
-     */
     for(size_t i = 0; i < count; i++) {
         if(!collided[i]) continue;
 
@@ -783,8 +782,7 @@ bool uni_remote_store_move_element(
         if(!find_nearest_free_position(
                remote,
                i,
-               displaced->w,
-               displaced->h,
+               displaced,
                preferred_x,
                preferred_y,
                &rx,
@@ -811,13 +809,13 @@ bool uni_remote_store_move_element(
 
 static bool find_free_position(
     const UniRemote* remote,
-    uint8_t w,
-    uint8_t h,
+    const UniElement* candidate,
     uint8_t* out_x,
     uint8_t* out_y) {
-    for(uint8_t y = 0; y + h <= 6; y++) {
-        for(uint8_t x = 0; x + w <= 3; x++) {
-            if(rect_free(remote, UNI_MAX_ELEMENTS, x, y, w, h)) {
+    if(!candidate) return false;
+    for(uint8_t y = 0; y + candidate->h <= 6; y++) {
+        for(uint8_t x = 0; x + candidate->w <= 3; x++) {
+            if(element_free(remote, UNI_MAX_ELEMENTS, candidate, x, y)) {
                 *out_x = x;
                 *out_y = y;
                 return true;
@@ -854,16 +852,21 @@ bool uni_remote_store_add_element(
     const UniElementPreset* preset = uni_element_preset_get(preset_index);
     if(!remote || !preset) return false;
 
+    UniElement candidate = {0};
+    candidate.type = preset->type;
+    candidate.w = preset->w;
+    candidate.h = preset->h;
+
     uint8_t x = 0;
     uint8_t y = 0;
-    if(!find_free_position(remote, preset->w, preset->h, &x, &y)) {
+    if(!find_free_position(remote, &candidate, &x, &y)) {
         /*
-         * No contiguous free rectangle: ADD becomes a deliberate region replace.
-         * Large elements such as a 3x3 D-pad can therefore replace a cluster of
-         * 1x1 buttons without manually deleting each button first.
+         * No valid placement: ADD becomes deliberate mask-region replacement.
+         * A 3x3 D-pad removes only its five occupied cross cells; four corner
+         * buttons survive because those cells are not part of the D-pad mask.
          */
         preferred_position(preset, &x, &y);
-        remove_overlaps(remote, NULL, x, y, preset->w, preset->h);
+        remove_overlaps(remote, NULL, &candidate, x, y);
     }
 
     if(remote->element_count >= UNI_MAX_ELEMENTS) return false;
@@ -899,8 +902,13 @@ bool uni_remote_store_replace_element(
     if(x + preset->w > 3) x = 3 - preset->w;
     if(y + preset->h > 6) y = 6 - preset->h;
 
+    UniElement candidate = old;
+    candidate.type = preset->type;
+    candidate.w = preset->w;
+    candidate.h = preset->h;
+
     size_t protected_index = element_index;
-    remove_overlaps(remote, &protected_index, x, y, preset->w, preset->h);
+    remove_overlaps(remote, &protected_index, &candidate, x, y);
     element_index = protected_index;
 
     if(preset->type == old.type) {
