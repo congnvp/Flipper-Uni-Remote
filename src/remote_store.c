@@ -185,6 +185,7 @@ static void ensure_default_package(Storage* storage) {
             "StateProfile: %s\n"
             "Order: %lu\n"
             "RepeatEnabled: false\n"
+            "PageCount: 2\n"
             "SignalFile: \n"
             "ActionFile: \n"
             "BluetoothProfile: \n"
@@ -205,11 +206,11 @@ static void ensure_default_package(Storage* storage) {
             "#\n"
             "Element4Type: button\nElement4Id: tempup\nElement4Rect: 1 1 1 1\nElement4Label: T+\nElement4Icon: plus\nElement4Tap: st:temp+\n"
             "#\n"
-            "Element5Type: button\nElement5Id: swing\nElement5Rect: 2 1 1 1\nElement5Label: SWG\nElement5Icon: swing\nElement5Tap: st:%s\n"
+            "Element5Page: 1\nElement5Type: button\nElement5Id: swing\nElement5Rect: 2 1 1 1\nElement5Label: SWG\nElement5Icon: swing\nElement5Tap: st:%s\n"
             "#\n"
-            "Element6Type: button\nElement6Id: eco\nElement6Rect: 0 2 1 1\nElement6Label: ECO\nElement6Icon: eco\nElement6Tap: st:eco\n"
+            "Element6Page: 1\nElement6Type: button\nElement6Id: eco\nElement6Rect: 0 2 1 1\nElement6Label: ECO\nElement6Icon: eco\nElement6Tap: st:eco\n"
             "#\n"
-            "Element7Type: button\nElement7Id: turbo\nElement7Rect: 1 2 1 1\nElement7Label: TUR\nElement7Icon: turbo\nElement7Tap: st:turbo\n"
+            "Element7Page: 1\nElement7Type: button\nElement7Id: turbo\nElement7Rect: 1 2 1 1\nElement7Label: TUR\nElement7Icon: turbo\nElement7Tap: st:turbo\n"
             "%s",
             ac_demos[d].folder,
             ac_demos[d].name,
