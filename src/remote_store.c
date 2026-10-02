@@ -238,6 +238,11 @@ static bool load_element(FlipperFormat* ff, uint32_t index, UniElement* element)
     snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
     if(!ff_read_rect(ff, key, element)) return false;
 
+    uint32_t page = 0;
+    snprintf(key, sizeof(key), "Element%luPage", (unsigned long)index);
+    ff_read_u32(ff, key, &page, false);
+    element->page = (uint8_t)page;
+
     read_element_string(ff, index, "Label", element->label, sizeof(element->label));
     read_element_string(ff, index, "Icon", element->icon, sizeof(element->icon));
     read_element_string(ff, index, "HoldIcon", element->hold_icon, sizeof(element->hold_icon));
@@ -282,6 +287,7 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
 
     memset(remote, 0, sizeof(UniRemote));
     remote->repeat_enabled = true;
+    remote->page_count = 1;
     snprintf(remote->id, sizeof(remote->id), "%.23s", folder);
     snprintf(remote->signal_file, sizeof(remote->signal_file), "signals.ir");
     snprintf(remote->action_file, sizeof(remote->action_file), "actions.ur");
@@ -299,6 +305,11 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         if(!ff_read_string(ff, "Transport", transport_text, sizeof(transport_text), true)) break;
         if(!parse_transport(transport_text, &remote->transport)) break;
         ff_read_u32(ff, "Order", &remote->order, false);
+        uint32_t page_count = 1;
+        ff_read_u32(ff, "PageCount", &page_count, false);
+        if(page_count == 0) page_count = 1;
+        if(page_count > 8) page_count = 8;
+        remote->page_count = (uint8_t)page_count;
         ff_read_bool(ff, "RepeatEnabled", &remote->repeat_enabled, false);
         ff_read_string(ff, "SignalFile", remote->signal_file, sizeof(remote->signal_file), false);
         ff_read_string(ff, "ActionFile", remote->action_file, sizeof(remote->action_file), false);
@@ -411,6 +422,9 @@ static bool write_element(FlipperFormat* ff, size_t index, const UniElement* e) 
 
     WRITE_STR("Type", uni_element_type_name(e->type));
     WRITE_STR("Id", e->id);
+    snprintf(key, sizeof(key), "Element%luPage", (unsigned long)index);
+    uint32_t page = e->page;
+    if(!flipper_format_write_uint32(ff, key, &page, 1)) return false;
     snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
     if(!flipper_format_write_uint32(ff, key, rect, 4)) return false;
     WRITE_STR("Label", e->label);
@@ -465,6 +479,8 @@ bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
                                     "STATE_IR";
         if(!write_string(ff, "Transport", transport)) break;
         if(!flipper_format_write_uint32(ff, "Order", &remote->order, 1)) break;
+        uint32_t page_count = remote->page_count ? remote->page_count : 1;
+        if(!flipper_format_write_uint32(ff, "PageCount", &page_count, 1)) break;
         if(!flipper_format_write_bool(ff, "RepeatEnabled", &remote->repeat_enabled, 1)) break;
         if(!write_string(ff, "SignalFile", remote->signal_file)) break;
         if(!write_string(ff, "ActionFile", remote->action_file)) break;
@@ -612,6 +628,7 @@ static bool elements_overlap_at(
     uint8_t bx,
     uint8_t by) {
     if(!a || !b) return false;
+    if(a->page != b->page) return false;
     for(uint8_t y = 0; y < 6; y++) {
         for(uint8_t x = 0; x < 3; x++) {
             if(uni_element_occupies_cell_at(a, ax, ay, x, y) &&

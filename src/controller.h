@@ -18,6 +18,7 @@ typedef enum {
 
 typedef struct {
     size_t focus_index;
+    uint8_t active_page;
     size_t focus_before_capture;
     bool focus_before_capture_valid;
 

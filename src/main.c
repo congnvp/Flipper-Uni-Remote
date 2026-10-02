@@ -42,11 +42,14 @@ static void uni_draw_callback(Canvas* canvas, void* context) {
     UniApp* app = context;
     if(app->ui.page == UniUiLayoutEditor) {
         app->ui.focus_index = app->ui.layout_element;
+        if(app->ui.remote && app->ui.layout_element < app->ui.remote->element_count)
+            app->ui.active_page = app->ui.remote->elements[app->ui.layout_element].page;
         app->ui.dpad_captured = false;
         app->ui.dpad_alt = false;
         app->ui.dpad_hold_key = UniKeyUnknown;
     } else {
         app->ui.focus_index = app->controller.focus_index;
+        app->ui.active_page = app->controller.active_page;
         app->ui.dpad_captured = app->controller.dpad_captured;
         app->ui.dpad_alt = app->controller.dpad_alt;
         app->ui.dpad_hold_key = app->controller.dpad_hold_key;
@@ -819,6 +822,12 @@ static void handle_keymap(UniApp* app, const InputEvent* event, UniKey key) {
 
 static void handle_event(UniApp* app, const InputEvent* event) {
     const UniKey key = uni_map_physical_key(event->key);
+    if(app->ui.page == UniUiRemote && key == UniKeyOk) {
+        if(event->type == InputTypePress) app->ui.pressed = true;
+        else if(event->type == InputTypeRelease || event->type == InputTypeShort) app->ui.pressed = false;
+    } else if(app->ui.page != UniUiRemote) {
+        app->ui.pressed = false;
+    }
 
     if(key == UniKeyBack && event->type == InputTypeLong) {
         system_escape(app);

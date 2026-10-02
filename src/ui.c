@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
-static const uint8_t grid_x[] = {0, 21, 42, 64};
-static const uint8_t grid_y[] = {0, 21, 42, 64, 85, 106, 128};
+static const uint8_t grid_x[] = {0, 20, 40, 60};
+static const uint8_t grid_y[] = {8, 28, 48, 68, 88, 108, 128};
 
 static void pset(Canvas* canvas, int16_t x, int16_t y, Color color) {
     if(x < 0 || x >= 64 || y < 0 || y >= 128) return;
@@ -223,15 +223,35 @@ static void grid_rect(const UniElement* e, int16_t* x, int16_t* y, int16_t* w, i
     *h = grid_y[e->y + e->h] - *y;
 }
 
-static void draw_status(Canvas* canvas, const UniUiState* state, const UniElement* e) {
-    int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
-    frame(canvas,x+1,y+1,w-2,h-2,false);
-    text3(canvas,uni_transport_label(state->remote->transport),x+4,y+8,ColorBlack);
-    text_center3(canvas,state->remote->short_name,x+w/2,y+8,ColorBlack);
-    const char* right = state->tx_flash ? "TX" : (state->tx_ok ? "--" : "ER");
+static void draw_status(Canvas* canvas, const UniUiState* state) {
+    if(!state || !state->remote) return;
+    text3(canvas, uni_transport_label(state->remote->transport), 1, 1, ColorBlack);
+    text_center3(canvas, state->remote->short_name, 30, 1, ColorBlack);
+    const char* right = state->tx_flash ? "TX" : (state->tx_ok ? "" : "ER");
     if(state->dpad_captured && state->dpad_alt) right = "AL";
     if(state->page == UniUiLayoutEditor) right = state->layout_moving ? "MV" : "ED";
-    text3(canvas,right,x+w-12,y+8,ColorBlack);
+    if(right[0]) {
+        const int16_t tw = text_width3(right);
+        text3(canvas, right, 59 - tw, 1, ColorBlack);
+    }
+}
+
+static void draw_page_rail(Canvas* canvas, const UniUiState* state) {
+    if(!state || !state->remote || state->remote->page_count <= 1) return;
+    const uint8_t count = state->remote->page_count;
+    const uint8_t gap = 2;
+    const uint8_t total = (uint8_t)(count + (count - 1) * gap + 1);
+    int16_t y = 8 + (120 - total) / 2;
+    for(uint8_t i = 0; i < count; i++) {
+        if(i == state->active_page) {
+            vline(canvas, 61, y, 2, ColorBlack);
+            y += 2;
+        } else {
+            pset(canvas, 61, y, ColorBlack);
+            y += 1;
+        }
+        if(i + 1 < count) y += gap;
+    }
 }
 
 static void draw_screen(Canvas* canvas, const UniUiState* state, const UniElement* e) {
@@ -251,12 +271,31 @@ static void draw_screen(Canvas* canvas, const UniUiState* state, const UniElemen
         text_center3(canvas,state->tx_ok?"READY":"NO SIGNAL",x+w/2,y+h-9,ColorBlack);
 }
 
+static void near_square(Canvas* canvas, int16_t x, int16_t y, bool filled, Color color) {
+    if(filled) {
+        hline(canvas, x + 1, y, 17, color);
+        fill_rect(canvas, x, y + 1, 19, 17, color);
+        hline(canvas, x + 1, y + 18, 17, color);
+    } else {
+        hline(canvas, x + 1, y, 17, color);
+        hline(canvas, x + 1, y + 18, 17, color);
+        vline(canvas, x, y + 1, 17, color);
+        vline(canvas, x + 18, y + 1, 17, color);
+    }
+}
+
 static void draw_button(
-    Canvas* canvas,const UniElement* e,int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
-    frame(canvas,x+1,y+1,w-2,h-2,focused);
-    const Color color=focused?ColorWhite:ColorBlack;
-    if(e->icon[0]) draw_icon_id(canvas,e->icon,x+w/2,y+h/2,color,e->label);
-    else text_center3(canvas,e->label,x+w/2,y+h/2-2,color);
+    Canvas* canvas,const UniUiState* state,const UniElement* e,
+    int16_t x,int16_t y,int16_t w,int16_t h,bool focused) {
+    const bool pressed = focused && state->pressed;
+    if(w == 20 && h == 20) {
+        near_square(canvas,x,y,focused && !pressed,ColorBlack);
+    } else {
+        frame(canvas,x,y,w-1,h-1,focused && !pressed);
+    }
+    const Color color=(focused && !pressed)?ColorWhite:ColorBlack;
+    if(e->icon[0]) draw_icon_id(canvas,e->icon,x+w/2-1,y+h/2-1,color,e->label);
+    else text_center3(canvas,e->label,x+w/2-1,y+h/2-3,color);
 }
 
 static void draw_hstep(
@@ -324,12 +363,13 @@ static void draw_dpad(
 
 static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
     const UniElement* e=&state->remote->elements[index];
+    if(e->page != state->active_page) return;
     const bool focused=uni_element_focusable(e)&&index==state->focus_index;
     int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
     switch(e->type) {
-    case UniElementStatus: draw_status(canvas,state,e); break;
+    case UniElementStatus: break;
     case UniElementScreen: draw_screen(canvas,state,e); break;
-    case UniElementButton: draw_button(canvas,e,x,y,w,h,focused); break;
+    case UniElementButton: draw_button(canvas,state,e,x,y,w,h,focused); break;
     case UniElementHStep: draw_hstep(canvas,e,x,y,w,h,focused); break;
     case UniElementVStep: draw_vstep(canvas,e,x,y,w,h,focused); break;
     case UniElementDpad: draw_dpad(canvas,state,e,x,y,w,h,focused); break;
@@ -338,20 +378,23 @@ static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
 
 static void draw_remote(Canvas* canvas,const UniUiState* state) {
     if(!state->remote) return;
+    draw_status(canvas,state);
     for(size_t i=0;i<state->remote->element_count;i++) draw_element(canvas,state,i);
+    draw_page_rail(canvas,state);
 }
 
 static void draw_menu_header(Canvas* canvas,const char* title) {
-    frame(canvas,1,1,62,19,false); text_center3(canvas,title,32,8,ColorBlack);
+    text_center3(canvas,title,32,4,ColorBlack);
+    hline(canvas,2,13,60,ColorBlack);
 }
 
 static void draw_menu_row(Canvas* canvas,int16_t y,const char* label,const char* value,bool active) {
-    frame(canvas,3,y,58,17,active);
+    if(active) fill_rect(canvas,2,y,60,12,ColorBlack);
     const Color color=active?ColorWhite:ColorBlack;
-    text3(canvas,label,7,y+6,color);
+    text3(canvas,label,5,y+4,color);
     if(value&&value[0]) {
         const int16_t tw=text_width3(value);
-        text3(canvas,value,57-tw,y+6,color);
+        text3(canvas,value,59-tw,y+4,color);
     }
 }
 

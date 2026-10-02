@@ -34,12 +34,35 @@ UniKey uni_map_physical_key(InputKey key) {
     }
 }
 
-static size_t first_focusable(const UniRemote* remote) {
+static size_t first_focusable_on_page(const UniRemote* remote, uint8_t page) {
     if(!remote) return 0;
     for(size_t i = 0; i < remote->element_count; i++) {
-        if(uni_element_focusable(&remote->elements[i])) return i;
+        if(remote->elements[i].page == page && uni_element_focusable(&remote->elements[i])) return i;
     }
-    return 0;
+    return remote->element_count;
+}
+
+static bool switch_page(UniController* controller, const UniRemote* remote, int8_t delta) {
+    if(!controller || !remote || remote->page_count <= 1) return false;
+    uint8_t page = controller->active_page;
+    for(uint8_t tries = 0; tries < remote->page_count; tries++) {
+        int16_t p = (int16_t)page + delta;
+        while(p < 0) p += remote->page_count;
+        while(p >= remote->page_count) p -= remote->page_count;
+        page = (uint8_t)p;
+        const size_t first = first_focusable_on_page(remote, page);
+        if(first < remote->element_count) {
+            controller->active_page = page;
+            controller->focus_index = first;
+            controller->dpad_captured = remote->elements[first].type == UniElementDpad;
+            controller->dpad_alt = false;
+            controller->dpad_hold_key = UniKeyUnknown;
+            controller->ok_pending = false;
+            controller->focus_before_capture_valid = false;
+            return true;
+        }
+    }
+    return false;
 }
 
 static void set_focus(
@@ -88,7 +111,7 @@ bool uni_controller_move_focus(
     for(size_t i = 0; i < remote->element_count; i++) {
         if(i == controller->focus_index) continue;
         const UniElement* candidate = &remote->elements[i];
-        if(!uni_element_focusable(candidate)) continue;
+        if(candidate->page != controller->active_page || !uni_element_focusable(candidate)) continue;
 
         const int score = uni_element_direction_score(current, candidate, dx, dy);
         if(score >= 0 && score < best_score) {
@@ -97,7 +120,11 @@ bool uni_controller_move_focus(
         }
     }
 
-    if(best_index == controller->focus_index) return false;
+    if(best_index == controller->focus_index) {
+        if(direction == UniKeyDown) return switch_page(controller, remote, +1);
+        if(direction == UniKeyUp) return switch_page(controller, remote, -1);
+        return false;
+    }
     set_focus(controller, remote, best_index, true);
     return true;
 }
@@ -178,7 +205,8 @@ void uni_controller_reset(UniController* controller, const UniRemote* remote) {
     controller->dpad_hold_key = UniKeyUnknown;
     controller->pending_nav_key = UniKeyUnknown;
 
-    const size_t first = first_focusable(remote);
+    controller->active_page = 0;
+    const size_t first = first_focusable_on_page(remote, controller->active_page);
     if(remote && first < remote->element_count) {
         controller->focus_index = first;
         controller->dpad_captured = remote->elements[first].type == UniElementDpad;
@@ -314,8 +342,9 @@ void uni_controller_handle(
         return;
     }
 
-    if(controller->focus_index >= remote->element_count) {
-        const size_t first = first_focusable(remote);
+    if(controller->focus_index >= remote->element_count ||
+       remote->elements[controller->focus_index].page != controller->active_page) {
+        const size_t first = first_focusable_on_page(remote, controller->active_page);
         if(first < remote->element_count) set_focus(controller, remote, first, false);
     }
     if(controller->focus_index >= remote->element_count) return;
@@ -339,7 +368,9 @@ void uni_controller_handle(
     if(repeat && (!repeat_enabled || !remote->repeat_enabled)) return;
 
     if(element->type == UniElementButton) {
-        if(key == UniKeyOk && input_type == InputTypeShort) {
+        if(key == UniKeyOk && input_type == InputTypePress && !element->hold[0]) {
+            emit(controller, element->tap, false);
+        } else if(key == UniKeyOk && input_type == InputTypeShort && element->hold[0]) {
             emit(controller, element->tap, false);
         } else if(key == UniKeyOk && input_type == InputTypeLong) {
             if(element->hold[0]) emit(controller, element->hold, false);
