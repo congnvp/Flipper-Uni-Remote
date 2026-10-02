@@ -9,19 +9,29 @@
 #define UNI_SETTINGS_FILETYPE "Flipper Uni Remote Settings"
 #define UNI_SETTINGS_VERSION 1U
 
-static bool create_default(Storage* storage) {
-    static const char text[] =
+bool uni_settings_save(Storage* storage, const UniSettings* settings) {
+    if(!storage || !settings) return false;
+
+    char text[256];
+    const int length = snprintf(
+        text,
+        sizeof(text),
         "Filetype: Flipper Uni Remote Settings\n"
         "Version: 1\n"
-        "RepeatEnabled: true\n"
-        "DefaultRemote: demo_tv\n";
+        "RepeatEnabled: %s\n"
+        "OpenDefault: %s\n"
+        "DefaultRemote: %s\n",
+        settings->repeat_enabled ? "true" : "false",
+        settings->open_default ? "true" : "false",
+        settings->default_remote);
+
+    if(length <= 0 || (size_t)length >= sizeof(text)) return false;
 
     File* file = storage_file_alloc(storage);
     if(!file) return false;
     bool ok = storage_file_open(file, UNI_SETTINGS_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS);
     if(ok) {
-        const size_t length = strlen(text);
-        ok = storage_file_write(file, text, length) == length;
+        ok = storage_file_write(file, text, (size_t)length) == (size_t)length;
         storage_file_sync(file);
     }
     storage_file_close(file);
@@ -29,10 +39,20 @@ static bool create_default(Storage* storage) {
     return ok;
 }
 
+static bool create_default(Storage* storage) {
+    UniSettings settings = {
+        .repeat_enabled = true,
+        .open_default = false,
+    };
+    snprintf(settings.default_remote, sizeof(settings.default_remote), "demo_tv");
+    return uni_settings_save(storage, &settings);
+}
+
 bool uni_settings_load_or_create(Storage* storage, UniSettings* settings) {
     if(!storage || !settings) return false;
     memset(settings, 0, sizeof(UniSettings));
     settings->repeat_enabled = true;
+    settings->open_default = false;
     snprintf(settings->default_remote, sizeof(settings->default_remote), "demo_tv");
 
     if(!storage_file_exists(storage, UNI_SETTINGS_PATH) && !create_default(storage)) return false;
@@ -52,6 +72,8 @@ bool uni_settings_load_or_create(Storage* storage, UniSettings* settings) {
 
         flipper_format_rewind(ff);
         flipper_format_read_bool(ff, "RepeatEnabled", &settings->repeat_enabled, 1);
+        flipper_format_rewind(ff);
+        flipper_format_read_bool(ff, "OpenDefault", &settings->open_default, 1);
         flipper_format_rewind(ff);
         if(flipper_format_read_string(ff, "DefaultRemote", value)) {
             snprintf(

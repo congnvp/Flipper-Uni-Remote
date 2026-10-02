@@ -1,17 +1,23 @@
 #include "controller.h"
 
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+/*
+ * Portrait use places the LCD above the D-pad, which means the physical device
+ * is rotated counter-clockwise from its normal landscape orientation.
+ */
 UniKey uni_map_physical_key(InputKey key) {
     switch(key) {
-    case InputKeyLeft:
-        return UniKeyUp;
     case InputKeyRight:
+        return UniKeyUp;
+    case InputKeyLeft:
         return UniKeyDown;
-    case InputKeyDown:
-        return UniKeyLeft;
     case InputKeyUp:
+        return UniKeyLeft;
+    case InputKeyDown:
         return UniKeyRight;
     case InputKeyOk:
         return UniKeyOk;
@@ -36,21 +42,64 @@ static void set_focus(UniController* controller, const UniRemote* remote, size_t
         remote && index < remote->element_count && remote->elements[index].type == UniElementDpad;
 }
 
-static void move_focus(UniController* controller, const UniRemote* remote, int direction) {
-    if(!remote || remote->element_count == 0) return;
+bool uni_controller_move_focus(
+    UniController* controller,
+    const UniRemote* remote,
+    UniKey direction) {
+    if(!controller || !remote || controller->focus_index >= remote->element_count) return false;
+    if(direction != UniKeyUp && direction != UniKeyDown && direction != UniKeyLeft &&
+       direction != UniKeyRight) {
+        return false;
+    }
 
-    size_t index = controller->focus_index;
-    for(size_t step = 0; step < remote->element_count; step++) {
-        if(direction > 0) {
-            index = (index + 1) % remote->element_count;
-        } else {
-            index = index == 0 ? remote->element_count - 1 : index - 1;
+    const UniElement* current = &remote->elements[controller->focus_index];
+    const int current_cx2 = 2 * current->x + current->w;
+    const int current_cy2 = 2 * current->y + current->h;
+    int best_score = INT_MAX;
+    size_t best_index = controller->focus_index;
+
+    for(size_t i = 0; i < remote->element_count; i++) {
+        if(i == controller->focus_index) continue;
+        const UniElement* candidate = &remote->elements[i];
+        if(!uni_element_focusable(candidate)) continue;
+
+        bool valid = false;
+        int primary = 0;
+        int secondary = 0;
+        const int candidate_cx2 = 2 * candidate->x + candidate->w;
+        const int candidate_cy2 = 2 * candidate->y + candidate->h;
+
+        if(direction == UniKeyRight && candidate->x >= current->x + current->w) {
+            valid = true;
+            primary = candidate->x - (current->x + current->w);
+            secondary = abs(candidate_cy2 - current_cy2);
+        } else if(direction == UniKeyLeft &&
+                  candidate->x + candidate->w <= current->x) {
+            valid = true;
+            primary = current->x - (candidate->x + candidate->w);
+            secondary = abs(candidate_cy2 - current_cy2);
+        } else if(direction == UniKeyDown && candidate->y >= current->y + current->h) {
+            valid = true;
+            primary = candidate->y - (current->y + current->h);
+            secondary = abs(candidate_cx2 - current_cx2);
+        } else if(direction == UniKeyUp &&
+                  candidate->y + candidate->h <= current->y) {
+            valid = true;
+            primary = current->y - (candidate->y + candidate->h);
+            secondary = abs(candidate_cx2 - current_cx2);
         }
-        if(uni_element_focusable(&remote->elements[index])) {
-            set_focus(controller, remote, index);
-            return;
+
+        if(!valid) continue;
+        const int score = primary * 100 + secondary;
+        if(score < best_score) {
+            best_score = score;
+            best_index = i;
         }
     }
+
+    if(best_index == controller->focus_index) return false;
+    set_focus(controller, remote, best_index);
+    return true;
 }
 
 static void emit(UniController* controller, const char* signal, bool repeat) {
@@ -65,8 +114,8 @@ void uni_controller_reset(UniController* controller, const UniRemote* remote) {
     set_focus(controller, remote, first_focusable(remote));
 }
 
-static bool is_press(InputType type) {
-    return type == InputTypePress || type == InputTypeShort;
+static bool is_direction_start(InputType type) {
+    return type == InputTypePress;
 }
 
 static bool is_repeat(InputType type) {
@@ -84,7 +133,6 @@ void uni_controller_handle(
     controller->request_exit = false;
     controller->action_ready = false;
 
-    /* Long Back is system-reserved and can never be remapped. */
     if(key == UniKeyBack && input_type == InputTypeLong) {
         if(controller->dpad_captured) {
             controller->dpad_captured = false;
@@ -105,43 +153,47 @@ void uni_controller_handle(
     if(element->type == UniElementButton) {
         if(key == UniKeyOk && input_type == InputTypeShort) emit(controller, element->tap, false);
         else if(key == UniKeyOk && input_type == InputTypeLong) emit(controller, element->hold, false);
-        else if((is_press(input_type) || repeat) && key != UniKeyBack) {
-            move_focus(controller, remote, key == UniKeyUp || key == UniKeyLeft ? -1 : 1);
-        }
+        else if(is_direction_start(input_type)) uni_controller_move_focus(controller, remote, key);
         return;
     }
 
     if(element->type == UniElementHStep) {
-        if((is_press(input_type) || repeat) && key == UniKeyLeft) emit(controller, element->left, repeat);
-        else if((is_press(input_type) || repeat) && key == UniKeyRight) emit(controller, element->right, repeat);
-        else if(is_press(input_type) && (key == UniKeyUp || key == UniKeyDown)) {
-            move_focus(controller, remote, key == UniKeyUp ? -1 : 1);
-        }
+        if((is_direction_start(input_type) || repeat) && key == UniKeyLeft)
+            emit(controller, element->left, repeat);
+        else if((is_direction_start(input_type) || repeat) && key == UniKeyRight)
+            emit(controller, element->right, repeat);
+        else if(is_direction_start(input_type) && (key == UniKeyUp || key == UniKeyDown))
+            uni_controller_move_focus(controller, remote, key);
         return;
     }
 
     if(element->type == UniElementVStep) {
-        if((is_press(input_type) || repeat) && key == UniKeyUp) emit(controller, element->up, repeat);
-        else if((is_press(input_type) || repeat) && key == UniKeyDown) emit(controller, element->down, repeat);
-        else if(is_press(input_type) && (key == UniKeyLeft || key == UniKeyRight)) {
-            move_focus(controller, remote, key == UniKeyLeft ? -1 : 1);
-        }
+        if((is_direction_start(input_type) || repeat) && key == UniKeyUp)
+            emit(controller, element->up, repeat);
+        else if((is_direction_start(input_type) || repeat) && key == UniKeyDown)
+            emit(controller, element->down, repeat);
+        else if(is_direction_start(input_type) && (key == UniKeyLeft || key == UniKeyRight))
+            uni_controller_move_focus(controller, remote, key);
         return;
     }
 
     if(element->type == UniElementDpad) {
         if(!controller->dpad_captured) {
-            if(is_press(input_type) && key != UniKeyBack) {
-                move_focus(controller, remote, key == UniKeyUp || key == UniKeyLeft ? -1 : 1);
-            }
+            if(is_direction_start(input_type)) uni_controller_move_focus(controller, remote, key);
             return;
         }
 
-        if((is_press(input_type) || repeat) && key == UniKeyUp) emit(controller, element->up, repeat);
-        else if((is_press(input_type) || repeat) && key == UniKeyDown) emit(controller, element->down, repeat);
-        else if((is_press(input_type) || repeat) && key == UniKeyLeft) emit(controller, element->left, repeat);
-        else if((is_press(input_type) || repeat) && key == UniKeyRight) emit(controller, element->right, repeat);
-        else if(key == UniKeyOk && input_type == InputTypeShort) emit(controller, element->ok, false);
-        else if(key == UniKeyOk && input_type == InputTypeLong) emit(controller, element->ok_hold, false);
+        if((is_direction_start(input_type) || repeat) && key == UniKeyUp)
+            emit(controller, element->up, repeat);
+        else if((is_direction_start(input_type) || repeat) && key == UniKeyDown)
+            emit(controller, element->down, repeat);
+        else if((is_direction_start(input_type) || repeat) && key == UniKeyLeft)
+            emit(controller, element->left, repeat);
+        else if((is_direction_start(input_type) || repeat) && key == UniKeyRight)
+            emit(controller, element->right, repeat);
+        else if(key == UniKeyOk && input_type == InputTypeShort)
+            emit(controller, element->ok, false);
+        else if(key == UniKeyOk && input_type == InputTypeLong)
+            emit(controller, element->ok_hold, false);
     }
 }

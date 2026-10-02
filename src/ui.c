@@ -147,12 +147,9 @@ static void draw_status(Canvas* canvas, const UniUiState* state, const UniElemen
     frame(canvas, x + 1, y + 1, w - 2, h - 2, false);
     text3(canvas, uni_transport_label(state->remote->transport), x + 4, y + 8, ColorBlack);
     text_center3(canvas, state->remote->short_name, x + w / 2, y + 8, ColorBlack);
-    text3(
-        canvas,
-        state->tx_flash ? "TX" : (state->tx_ok ? "--" : "ER"),
-        x + w - 12,
-        y + 8,
-        ColorBlack);
+    const char* status_right = state->tx_flash ? "TX" : (state->tx_ok ? "--" : "ER");
+    if(state->page == UniUiLayoutEditor) status_right = state->layout_moving ? "MV" : "ED";
+    text3(canvas, status_right, x + w - 12, y + 8, ColorBlack);
 }
 
 static void draw_screen(Canvas* canvas, const UniUiState* state, const UniElement* element) {
@@ -329,19 +326,126 @@ static void draw_home(Canvas* canvas, const UniUiState* state) {
         text3(canvas, uni_transport_label(remote->transport), 51, y + 5, color);
     }
 
-    text_center3(canvas, "HOLD BACK EXIT", 32, 116, ColorBlack);
+    text_center3(canvas, "BACK MENU", 32, 116, ColorBlack);
 }
 
 static void draw_remote(Canvas* canvas, const UniUiState* state) {
     for(size_t i = 0; i < state->remote->element_count; i++) draw_element(canvas, state, i);
 }
 
+static const UniRemote* menu_remote(const UniUiState* state) {
+    if(state->remote) return state->remote;
+    return uni_remote_store_get(state->store, state->selected_remote);
+}
+
+static void draw_menu_header(Canvas* canvas, const char* title) {
+    frame(canvas, 1, 1, 62, 19, false);
+    text_center3(canvas, title, 32, 8, ColorBlack);
+}
+
+static void draw_menu_row(
+    Canvas* canvas,
+    int16_t y,
+    const char* label,
+    const char* value,
+    bool active) {
+    frame(canvas, 3, y, 58, 17, active);
+    const Color color = active ? ColorWhite : ColorBlack;
+    text3(canvas, label, 7, y + 6, color);
+    if(value && value[0]) {
+        const int16_t width = text_width3(value);
+        text3(canvas, value, 57 - width, y + 6, color);
+    }
+}
+
+static void draw_main_menu(Canvas* canvas, const UniUiState* state) {
+    static const char* labels[] = {"GLOBAL", "REMOTE", "LAYOUT", "RELOAD", "BACK"};
+    draw_menu_header(canvas, "MENU");
+    for(size_t i = 0; i < 5; i++) {
+        draw_menu_row(canvas, 24 + (int16_t)i * 19, labels[i], NULL, i == state->menu_index);
+    }
+}
+
+static void draw_global_settings(Canvas* canvas, const UniUiState* state) {
+    draw_menu_header(canvas, "GLOBAL");
+    const char* repeat = state->settings->repeat_enabled ? "ON" : "OFF";
+    const char* auto_open = state->settings->open_default ? "ON" : "OFF";
+    const size_t default_index =
+        uni_remote_store_find_id(state->store, state->settings->default_remote);
+    const UniRemote* default_remote = uni_remote_store_get(state->store, default_index);
+    const char* short_name = default_remote ? default_remote->short_name : "---";
+
+    draw_menu_row(canvas, 26, "REPEAT", repeat, state->menu_index == 0);
+    draw_menu_row(canvas, 47, "AUTO", auto_open, state->menu_index == 1);
+    draw_menu_row(canvas, 68, "DEFAULT", short_name, state->menu_index == 2);
+    draw_menu_row(canvas, 89, "BACK", NULL, state->menu_index == 3);
+    text_center3(canvas, "LR CHANGE OK SET", 32, 116, ColorBlack);
+}
+
+static void draw_remote_settings(Canvas* canvas, const UniUiState* state) {
+    const UniRemote* remote = menu_remote(state);
+    draw_menu_header(canvas, "REMOTE");
+    if(!remote) {
+        text_center3(canvas, "NO REMOTE", 32, 55, ColorBlack);
+        return;
+    }
+
+    char bt[9] = {0};
+    snprintf(bt, sizeof(bt), "%.8s", remote->bluetooth_profile);
+    draw_menu_row(
+        canvas,
+        24,
+        "REPEAT",
+        remote->repeat_enabled ? "ON" : "OFF",
+        state->menu_index == 0);
+    draw_menu_row(canvas, 43, "DEFAULT", "SET", state->menu_index == 1);
+    draw_menu_row(canvas, 62, "LAYOUT", "EDIT", state->menu_index == 2);
+    draw_menu_row(canvas, 81, "BT ID", bt[0] ? bt : "---", state->menu_index == 3);
+    draw_menu_row(canvas, 100, "BACK", NULL, state->menu_index == 4);
+}
+
+static void draw_layout_editor(Canvas* canvas, const UniUiState* state) {
+    if(!state->remote) return;
+    draw_remote(canvas, state);
+    const UniElement* element =
+        state->layout_element < state->remote->element_count ?
+            &state->remote->elements[state->layout_element] :
+            NULL;
+    if(element) {
+        int16_t x, y, w, h;
+        grid_rect(element, &x, &y, &w, &h);
+        pset(canvas, x + 1, y + 1, ColorBlack);
+        pset(canvas, x + w - 2, y + 1, ColorBlack);
+        pset(canvas, x + 1, y + h - 2, ColorBlack);
+        pset(canvas, x + w - 2, y + h - 2, ColorBlack);
+    }
+}
+
 void uni_ui_draw(Canvas* canvas, const UniUiState* state) {
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
 
-    if(state->page == UniUiHome || !state->remote) draw_home(canvas, state);
-    else draw_remote(canvas, state);
+    switch(state->page) {
+    case UniUiHome:
+        draw_home(canvas, state);
+        break;
+    case UniUiRemote:
+        if(state->remote) draw_remote(canvas, state);
+        else draw_home(canvas, state);
+        break;
+    case UniUiMenu:
+        draw_main_menu(canvas, state);
+        break;
+    case UniUiGlobalSettings:
+        draw_global_settings(canvas, state);
+        break;
+    case UniUiRemoteSettings:
+        draw_remote_settings(canvas, state);
+        break;
+    case UniUiLayoutEditor:
+        draw_layout_editor(canvas, state);
+        break;
+    }
 
     canvas_set_color(canvas, ColorBlack);
 }

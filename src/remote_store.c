@@ -268,6 +268,11 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         }
         remote->element_count = element_count;
         snprintf(
+            remote->config_path,
+            sizeof(remote->config_path),
+            "%s",
+            config_path);
+        snprintf(
             remote->signal_path,
             sizeof(remote->signal_path),
             UNI_REMOTES_DIR "/%s/%s",
@@ -332,11 +337,22 @@ bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
     return store->count > 0;
 }
 
+bool uni_remote_store_reload(UniRemoteStore* store) {
+    if(!store || !store->storage) return false;
+    scan_remotes(store);
+    return store->count > 0;
+}
+
 size_t uni_remote_store_count(const UniRemoteStore* store) {
     return store ? store->count : 0;
 }
 
 const UniRemote* uni_remote_store_get(const UniRemoteStore* store, size_t index) {
+    if(!store || index >= store->count) return NULL;
+    return &store->remotes[index];
+}
+
+UniRemote* uni_remote_store_get_mut(UniRemoteStore* store, size_t index) {
     if(!store || index >= store->count) return NULL;
     return &store->remotes[index];
 }
@@ -347,4 +363,135 @@ size_t uni_remote_store_find_id(const UniRemoteStore* store, const char* id) {
         if(strcmp(store->remotes[i].id, id) == 0) return i;
     }
     return 0;
+}
+
+
+static bool update_remote_bool(UniRemote* remote, const char* key, bool value) {
+    if(!remote || !key || !remote->config_path[0]) return false;
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    if(!storage) return false;
+    FlipperFormat* ff = flipper_format_file_alloc(storage);
+    bool ok = false;
+    if(ff && flipper_format_file_open_existing(ff, remote->config_path)) {
+        flipper_format_rewind(ff);
+        ok = flipper_format_update_bool(ff, key, &value, 1);
+        flipper_format_file_close(ff);
+    }
+    if(ff) flipper_format_free(ff);
+    furi_record_close(RECORD_STORAGE);
+    return ok;
+}
+
+bool uni_remote_store_set_repeat(UniRemoteStore* store, size_t remote_index, bool enabled) {
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote) return false;
+    if(!update_remote_bool(remote, "RepeatEnabled", enabled)) return false;
+    remote->repeat_enabled = enabled;
+    return true;
+}
+
+static bool rects_overlap(
+    uint8_t ax,
+    uint8_t ay,
+    uint8_t aw,
+    uint8_t ah,
+    uint8_t bx,
+    uint8_t by,
+    uint8_t bw,
+    uint8_t bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+static bool update_element_rect(UniRemote* remote, size_t element_index) {
+    if(!remote || element_index >= remote->element_count || !remote->config_path[0]) return false;
+
+    char key[32];
+    snprintf(key, sizeof(key), "Element%luRect", (unsigned long)element_index);
+    const UniElement* element = &remote->elements[element_index];
+    uint32_t rect[4] = {element->x, element->y, element->w, element->h};
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    if(!storage) return false;
+    FlipperFormat* ff = flipper_format_file_alloc(storage);
+    bool ok = false;
+    if(ff && flipper_format_file_open_existing(ff, remote->config_path)) {
+        flipper_format_rewind(ff);
+        ok = flipper_format_update_uint32(ff, key, rect, 4);
+        flipper_format_file_close(ff);
+    }
+    if(ff) flipper_format_free(ff);
+    furi_record_close(RECORD_STORAGE);
+    return ok;
+}
+
+bool uni_remote_store_move_element(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    int8_t dx,
+    int8_t dy) {
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || element_index >= remote->element_count) return false;
+
+    UniElement* moving = &remote->elements[element_index];
+    if(!uni_element_focusable(moving)) return false;
+
+    const int nx = (int)moving->x + dx;
+    const int ny = (int)moving->y + dy;
+    if(nx < 0 || ny < 0 || nx + moving->w > 3 || ny + moving->h > 6) return false;
+
+    size_t collision = UNI_MAX_ELEMENTS;
+    for(size_t i = 0; i < remote->element_count; i++) {
+        if(i == element_index) continue;
+        const UniElement* other = &remote->elements[i];
+        if(rects_overlap(
+               (uint8_t)nx,
+               (uint8_t)ny,
+               moving->w,
+               moving->h,
+               other->x,
+               other->y,
+               other->w,
+               other->h)) {
+            if(collision != UNI_MAX_ELEMENTS) return false;
+            collision = i;
+        }
+    }
+
+    const uint8_t old_x = moving->x;
+    const uint8_t old_y = moving->y;
+    uint8_t swap_old_x = 0;
+    uint8_t swap_old_y = 0;
+
+    if(collision != UNI_MAX_ELEMENTS) {
+        UniElement* other = &remote->elements[collision];
+        if(other->x != (uint8_t)nx || other->y != (uint8_t)ny || other->w != moving->w ||
+           other->h != moving->h) {
+            return false;
+        }
+        swap_old_x = other->x;
+        swap_old_y = other->y;
+        other->x = old_x;
+        other->y = old_y;
+    }
+
+    moving->x = (uint8_t)nx;
+    moving->y = (uint8_t)ny;
+
+    if(!update_element_rect(remote, element_index)) {
+        moving->x = old_x;
+        moving->y = old_y;
+        if(collision != UNI_MAX_ELEMENTS) {
+            remote->elements[collision].x = swap_old_x;
+            remote->elements[collision].y = swap_old_y;
+        }
+        return false;
+    }
+
+    if(collision != UNI_MAX_ELEMENTS && !update_element_rect(remote, collision)) {
+        /* Memory remains in the new visual order; Reload restores the file truth if needed. */
+        return false;
+    }
+
+    return true;
 }
