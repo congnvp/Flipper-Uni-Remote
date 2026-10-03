@@ -113,5 +113,10 @@ bool uni_settings_load_or_create(Storage* storage, UniSettings* settings) {
     furi_string_free(value);
     furi_string_free(filetype);
     flipper_format_free(ff);
-    return ok;
+
+    if(!ok) {
+        /* A malformed settings file must not brick app startup. */
+        return create_default(storage);
+    }
+    return true;
 }
