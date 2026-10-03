@@ -10,5 +10,5 @@ App(
     fap_author="congnvp",
     fap_weburl="https://github.com/congnvp/Flipper-Uni-Remote",
     sources=["src/*.c"],
-    fap_libs=["infrared"],
+    fap_libs=["infrared", "ble_profile"],
 )
