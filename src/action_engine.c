@@ -3,6 +3,7 @@
 #include <flipper_format/flipper_format.h>
 #include <furi.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define UNI_ACTION_FILETYPE "Flipper Uni Remote Actions"
