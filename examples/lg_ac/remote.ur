@@ -5,6 +5,8 @@ Name: LG AC
 ShortName: LG
 Transport: STATE_IR
 Order: 30
+Favourite: false
+Folder: AC
 RepeatEnabled: true
 PageCount: 3
 IrBurst: 1
