@@ -1,4 +1,5 @@
 #include "action_engine.h"
+#include "bt_transport.h"
 #include "controller.h"
 #include "editor_model.h"
 #include "icon_library.h"
@@ -27,6 +28,7 @@ typedef struct {
     Gui* gui;
     Storage* storage;
     UniIrTransport* ir;
+    UniBtTransport* bt;
     UniActionEngine actions;
     UniRemoteStore store;
     UniSettings settings;
@@ -40,6 +42,13 @@ typedef struct {
 
 static void uni_draw_callback(Canvas* canvas, void* context) {
     UniApp* app = context;
+    if(app->ui.remote && app->ui.remote->transport == UniTransportBluetoothHid) {
+        snprintf(
+            app->ui.status_text,
+            sizeof(app->ui.status_text),
+            "%s",
+            uni_bt_transport_is_connected(app->bt) ? "BT OK" : "PAIR");
+    }
     app->ui.tx_flash =
         app->tx_flash_until && (int32_t)(app->tx_flash_until - furi_get_tick()) > 0;
     if(app->ui.page == UniUiLayoutEditor) {
@@ -84,6 +93,14 @@ static void refresh_status_text(UniApp* app) {
     const UniRemote* remote = selected_remote(app);
     if(!remote) return;
 
+    if(remote->transport == UniTransportBluetoothHid) {
+        snprintf(
+            app->ui.status_text,
+            sizeof(app->ui.status_text),
+            "%s",
+            uni_bt_transport_is_connected(app->bt) ? "BT OK" : "PAIR");
+        return;
+    }
     if(remote->transport != UniTransportStatefulIr) {
         snprintf(app->ui.status_text, sizeof(app->ui.status_text), "%.3s", remote->short_name);
         return;
@@ -152,6 +169,13 @@ static void open_remote(UniApp* app) {
     app->ui.remote = selected_remote(app);
     if(!app->ui.remote || !app->ui.remote->elements_loaded) return;
     load_actions_for_selected(app);
+    if(app->ui.remote->transport == UniTransportBluetoothHid) {
+        if(!uni_bt_transport_activate(app->bt, app->ui.remote->bluetooth_profile)) {
+            app->ui.tx_ok = false;
+        }
+    } else {
+        uni_bt_transport_deactivate(app->bt);
+    }
     app->ui.page = UniUiRemote;
     app->ui.last_signal[0] = '\0';
     app->ui.tx_ok = true;
@@ -174,6 +198,7 @@ static void system_escape(UniApp* app) {
     if(app->ui.page == UniUiHome) {
         app->running = false;
     } else {
+        uni_bt_transport_deactivate(app->bt);
         uni_remote_store_unload_details(&app->store, app->ui.selected_remote);
         app->ui.page = UniUiHome;
         app->ui.remote = NULL;
@@ -973,11 +998,12 @@ int32_t uni_remote_app(void* p) {
     const bool store_ok =
         app->storage && uni_remote_store_init(&app->store, app->storage);
     app->ir = app->storage ? uni_ir_transport_alloc(app->storage) : NULL;
-    uni_action_engine_init(&app->actions, app->storage, app->ir);
+    app->bt = app->storage ? uni_bt_transport_alloc(app->storage) : NULL;
+    uni_action_engine_init(&app->actions, app->storage, app->ir, app->bt);
 
     app->repeat_enabled = settings_ok ? app->settings.repeat_enabled : true;
     app->running = app->input_queue && app->view_port && app->gui && app->storage &&
-                   app->ir && store_ok && settings_ok;
+                   app->ir && app->bt && store_ok && settings_ok;
 
     app->ui.page = UniUiHome;
     app->ui.store = &app->store;
@@ -1022,6 +1048,7 @@ int32_t uni_remote_app(void* p) {
     }
 
     if(app->gui) furi_record_close(RECORD_GUI);
+    if(app->bt) uni_bt_transport_free(app->bt);
     if(app->ir) uni_ir_transport_free(app->ir);
     if(app->storage) furi_record_close(RECORD_STORAGE);
     if(app->view_port) view_port_free(app->view_port);
