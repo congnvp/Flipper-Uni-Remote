@@ -1,4 +1,5 @@
 #include "action_engine.h"
+#include "bt_transport.h"
 #include "controller.h"
 #include "editor_model.h"
 #include "icon_library.h"
@@ -27,6 +28,7 @@ typedef struct {
     Gui* gui;
     Storage* storage;
     UniIrTransport* ir;
+    UniBtTransport* bt;
     UniActionEngine actions;
     UniStateEngine state_engine;
     UniRemoteStore store;
@@ -130,6 +132,13 @@ static void open_remote(UniApp* app) {
                 &app->state_engine,
                 app->ui.last_signal,
                 sizeof(app->ui.last_signal));
+    } else if(app->ui.remote->transport == UniTransportBluetoothHid) {
+        app->ui.tx_ok = app->bt && uni_bt_transport_activate(app->bt, app->ui.remote);
+        snprintf(
+            app->ui.last_signal,
+            sizeof(app->ui.last_signal),
+            "%s",
+            app->ui.tx_ok ? "PAIRING" : "BT ERROR");
     }
     uni_controller_reset(&app->controller, app->ui.remote);
     if(strcmp(app->settings.last_remote, app->ui.remote->id) == 0 &&
@@ -164,6 +173,7 @@ static void system_escape(UniApp* app) {
         remember_runtime(app);
         uni_state_engine_flush(&app->state_engine);
         uni_state_engine_unload(&app->state_engine);
+        if(app->bt) uni_bt_transport_deactivate(app->bt);
         uni_remote_store_unload_details(&app->store, app->ui.selected_remote);
         app->ui.page = UniUiHome;
         app->ui.remote = NULL;
@@ -201,6 +211,7 @@ static void reload_remotes(UniApp* app) {
     if(app->ui.remote) remember_runtime(app);
     uni_state_engine_flush(&app->state_engine);
     uni_state_engine_unload(&app->state_engine);
+    if(app->bt) uni_bt_transport_deactivate(app->bt);
     char keep_id[UNI_ID_MAX] = {0};
     const UniRemote* current = selected_remote(app);
     if(current) snprintf(keep_id, sizeof(keep_id), "%s", current->id);
@@ -290,6 +301,18 @@ static void dispatch_remote_action(UniApp* app) {
                 &app->state_engine,
                 app->ui.last_signal,
                 sizeof(app->ui.last_signal));
+    } else if(app->ui.remote->transport == UniTransportBluetoothHid) {
+        app->ui.tx_ok = app->bt &&
+                        uni_bt_transport_send(
+                            app->bt,
+                            app->ui.remote,
+                            app->controller.binding,
+                            app->controller.repeat);
+        snprintf(
+            app->ui.last_signal,
+            sizeof(app->ui.last_signal),
+            "%s",
+            app->bt && uni_bt_transport_connected(app->bt) ? "CONNECTED" : "PAIRING");
     } else {
         app->ui.tx_ok = false;
     }
@@ -1059,6 +1082,7 @@ int32_t uni_remote_app(void* p) {
     const bool store_ok =
         app->storage && uni_remote_store_init(&app->store, app->storage);
     app->ir = app->storage ? uni_ir_transport_alloc(app->storage) : NULL;
+    app->bt = app->storage ? uni_bt_transport_alloc(app->storage) : NULL;
     uni_action_engine_init(&app->actions, app->storage, app->ir);
     uni_state_engine_init(&app->state_engine, app->storage);
 
@@ -1113,6 +1137,13 @@ int32_t uni_remote_app(void* p) {
             } else if(app->ui.page == UniUiRemote && app->ui.remote) {
                 uni_controller_poll(&app->controller, app->ui.remote);
                 dispatch_remote_action(app);
+                if(app->ui.remote->transport == UniTransportBluetoothHid && app->bt) {
+                    snprintf(
+                        app->ui.last_signal,
+                        sizeof(app->ui.last_signal),
+                        "%s",
+                        uni_bt_transport_connected(app->bt) ? "CONNECTED" : "PAIRING");
+                }
             }
             view_port_update(app->view_port);
         }
@@ -1127,6 +1158,7 @@ int32_t uni_remote_app(void* p) {
 
     uni_state_engine_unload(&app->state_engine);
     if(app->gui) furi_record_close(RECORD_GUI);
+    if(app->bt) uni_bt_transport_free(app->bt);
     if(app->ir) uni_ir_transport_free(app->ir);
     if(app->storage) furi_record_close(RECORD_STORAGE);
     if(app->view_port) view_port_free(app->view_port);
