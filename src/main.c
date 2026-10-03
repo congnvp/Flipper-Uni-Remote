@@ -169,16 +169,16 @@ static void open_remote(UniApp* app) {
     app->ui.remote = selected_remote(app);
     if(!app->ui.remote || !app->ui.remote->elements_loaded) return;
     load_actions_for_selected(app);
+    bool transport_ok = true;
     if(app->ui.remote->transport == UniTransportBluetoothHid) {
-        if(!uni_bt_transport_activate(app->bt, app->ui.remote->bluetooth_profile)) {
-            app->ui.tx_ok = false;
-        }
+        transport_ok =
+            uni_bt_transport_activate(app->bt, app->ui.remote->bluetooth_profile);
     } else {
         uni_bt_transport_deactivate(app->bt);
     }
     app->ui.page = UniUiRemote;
     app->ui.last_signal[0] = '\0';
-    app->ui.tx_ok = true;
+    app->ui.tx_ok = transport_ok;
     refresh_status_text(app);
     uni_controller_reset(&app->controller, app->ui.remote);
 }
@@ -196,6 +196,7 @@ static void close_menu(UniApp* app) {
 
 static void system_escape(UniApp* app) {
     if(app->ui.page == UniUiHome) {
+        uni_bt_transport_deactivate(app->bt);
         app->running = false;
     } else {
         uni_bt_transport_deactivate(app->bt);
@@ -234,6 +235,12 @@ static void reload_remotes(UniApp* app) {
     const bool restore_remote = app->menu_return_page == UniUiRemote;
 
     /*
+     * A reload may change BluetoothProfile. Stop the old HID identity before
+     * releasing the current remote metadata, then restore the selected remote.
+     */
+    uni_bt_transport_deactivate(app->bt);
+
+    /*
      * scan_remotes() frees the currently loaded element array. Clear every
      * UI/controller reference before scanning so the draw callback can never
      * dereference an unloaded layout.
@@ -256,7 +263,15 @@ static void reload_remotes(UniApp* app) {
         if(uni_remote_store_load_details(&app->store, app->ui.selected_remote)) {
             app->ui.remote = selected_remote(app);
             load_actions_for_selected(app);
-            if(app->ui.remote) uni_controller_reset(&app->controller, app->ui.remote);
+            if(app->ui.remote) {
+                if(app->ui.remote->transport == UniTransportBluetoothHid) {
+                    app->ui.tx_ok = uni_bt_transport_activate(
+                        app->bt,
+                        app->ui.remote->bluetooth_profile);
+                }
+                refresh_status_text(app);
+                uni_controller_reset(&app->controller, app->ui.remote);
+            }
         } else {
             app->menu_return_page = UniUiHome;
         }
