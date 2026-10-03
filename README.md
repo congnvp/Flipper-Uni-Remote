@@ -1,173 +1,159 @@
 # Flipper Uni Remote
 
-A data-driven universal-remote FAP for Flipper Zero. Remote layout, signal bindings, icon IDs and action sequences live in editable text files on the SD card, while the engine stays transport-agnostic.
+Universal-remote FAP for Flipper Zero with data-driven layouts and three executable transports:
 
-Current development baseline: **v0.4.3**.
+- ordinary IR: parsed/raw Flipper `.ir` signals and named sequences;
+- stateful IR: local device state + vendor adapter + full-frame/auxiliary IR;
+- Bluetooth HID: media and keyboard/navigation controls.
 
-## Runtime model
+Current software candidate: **v0.9.0**. The v1.0.0 tag is intentionally held until the physical regression matrix passes.
+
+## Architecture
 
 ```text
 Physical key
-  -> system-reserved keys
   -> focus / captured element
-  -> binding (sig: / act:)
-  -> Action Engine
-  -> IR / future BLE / future stateful IR
+  -> binding
+  -> transport dispatcher
+       IR       -> Action Engine -> parsed/raw IR
+       STATE_IR -> State Engine -> LG/Daikin adapter -> IR
+       BT       -> BLE HID -> media/keyboard report
 ```
 
-A remote package lives at:
+The layout engine does not contain protocol bytes.
+
+## Remote packages
 
 ```text
 /ext/apps_data/flipper_uni_remote/remotes/<remote-id>/
 ├── remote.ur
 ├── signals.ir
 ├── actions.ur
-└── state.urs        # reserved for stateful devices
+└── state.urs
 ```
 
-## v0.4 features
+Included regression/reference profiles:
 
-- Multiple remote packages loaded from SD.
-- Standard Flipper `.ir` files, parsed or raw.
-- Single-signal binding: `sig:<signal-name>`.
-- Sequence binding: `act:<action-id>`.
-- Sequence steps support per-step delay.
-- On-device Layout Editor with Move, Add, Replace, Remove and Template.
-- Element library: button 1×1/1×2, H-step, V-step, D-pad, Status, Screen 3×2/3×3.
-- Layout templates: TV Basic, TV D-pad, Media and AC Basic.
-- Icon library with short stable IDs such as `pwr`, `mut`, `play`, `home`, `fan`, `cool`, `hdmi`.
-- On-device Map editor: Signal / Sequence / Clear.
-- Remote hard-key HOLD mapping uses the same Signal/Sequence picker.
-- D-pad NORMAL layer plus HOLD actions/icons.
-- Double OK toggles D-pad ALT layer. In ALT, a short direction press executes its HOLD binding.
-- Short Back exits D-pad capture and restores the previous focus.
-- Long Back is always a system escape and can never be remapped.
-- Global and per-remote settings remain persisted in Apps Data.
+- Sony RM-PJ8 projector;
+- Optoma HR21G-YHGD03 projector;
+- LG AC;
+- Daikin ARC433A73;
+- Bluetooth Media;
+- living_tv example.
 
-## D-pad behavior
+See `docs/REMOTE_PACKAGE.md`.
 
-Normal layer:
+## UI / layouts
+
+- Portrait 64×128 logical UI rendered on the native 128×64 display.
+- 3×6 logical grid.
+- 1..16 pages per remote.
+- Spatial focus navigation.
+- LEFT/RIGHT at the edge switches page.
+- D-pad uses a five-cell cross occupancy mask, leaving its four bounding-box corners usable.
+- Compact page indicator for multi-page remotes.
+- Focus inversion and press feedback.
+- Long Back is always reserved for system escape.
+
+The number of pages is a layout decision, not a fixed remote type rule. A remote may use 1, 2, 3, 4 or more pages when that produces a cleaner interface.
+
+## On-device editing
+
+Layout Editor supports:
+
+- Move;
+- Add;
+- Replace;
+- Remove;
+- Map;
+- Icon;
+- Template.
+
+Map is transport-aware:
+
+- IR -> Signal / Sequence;
+- STATE_IR -> valid adapter actions;
+- BT -> valid Bluetooth media/key actions.
+
+## Remote library
+
+Home is metadata-only and preserves lazy loading.
+
+Categories:
 
 ```text
-UP/DOWN/LEFT/RIGHT  -> normal bindings
-hold direction      -> *_hold binding, if configured
-OK                   -> delayed up to 240 ms for double-tap detection
-double OK            -> toggle ALT
+FAVOURITE -> user folders -> UNCATEGORIZED
 ```
 
-ALT layer displays the hold icons and maps a short direction press to the corresponding hold action. Double OK again returns to NORMAL.
+Favourite is independent of folders. The app also remembers the last remote/page/focus when safe.
 
-If a direction has a separate hold binding, the normal action is delayed until a short press is confirmed so a long press does not send both actions.
+## Stateful AC
 
-## Editing on Flipper
+LG and Daikin use `STATE_IR`; TEMP/FAN/MODE are not fake independent IR codes.
 
-Short Back outside captured D-pad opens Menu.
+`state.urs` is local remembered state. The display therefore represents what this FAP last sent/remembers, not confirmed appliance state.
 
-```text
-MENU
-├── GLOBAL
-├── REMOTE
-├── LAYOUT
-├── RELOAD
-└── BACK
-```
+See `docs/AC_PROTOCOLS.md`.
 
-Layout Editor:
+## Bluetooth HID
 
-- OK: Select ↔ Move.
-- Short Back while not moving: Layout Tools.
-- Layout Tools: Add / Remove / Map / Icon / Template / Done.
-- Map: choose binding field, then Signal / Sequence / Clear.
-- Icon: choose the icon field then an ID from the icon library.
+A BT remote supplies `BluetoothProfile`.
 
-Remote Settings includes KEYMAP for HOLD shortcuts. Directional hard-key HOLD mappings only apply when a focused element has not captured that direction.
+The app:
+
+- starts the BLE HID profile only when a BT remote is opened;
+- uses stable profile-derived BLE identity;
+- stores bond keys separately per profile in app-private storage;
+- restores the Flipper default Bluetooth profile when leaving the BT remote.
+
+Portable remote packages never contain bond secrets.
 
 ## Build
 
 ```bash
 python3 -m pip install --upgrade ufbt
 ufbt update --channel release
+python3 tools/check_version.py
+python3 tools/check_profiles.py
 ufbt
+ufbt lint
 ```
 
-With Flipper attached:
+With a connected Flipper:
 
 ```bash
 ufbt launch
 ```
 
-## Profile editing
+CI performs the same version/profile validation before the release-channel build and bundles the FAP with all example profiles.
 
-A single signal:
+## Installation
 
-```text
-Element4Tap: sig:Power
-```
+See `docs/INSTALL.md`.
 
-A named sequence:
+## Validation boundary
 
-```text
-Element4Hold: act:movie
-```
+The 0.9.0 codebase and bundled profiles are intended to be software-complete for the current v1 scope. A successful build does not prove physical IR acceptance or BLE pairing/reconnect.
 
-A button icon:
+Required real-device evidence is tracked in `docs/TEST_MATRIX.md`.
 
-```text
-Element4Icon: pwr
-```
+## Documentation
 
-D-pad hold layer:
-
-```text
-Element5UpHold: sig:VolUp
-Element5UpHoldIcon: volp
-Element5LeftHold: sig:Rewind
-Element5LeftHoldIcon: rew
-Element5AltSticky: false
-```
-
-See:
-
+- `docs/INSTALL.md`
 - `docs/REMOTE_PACKAGE.md`
+- `docs/AC_PROTOCOLS.md`
 - `docs/ACTIONS.md`
 - `docs/ICON_LIBRARY.md`
 - `docs/UI_SYSTEM.md`
+- `docs/TEST_MATRIX.md`
+- `docs/PROJECT_STATUS.md`
 
 ## Versioning
 
 Semantic Versioning: `vMAJOR.MINOR.PATCH`.
 
-`VERSION` is the source of truth. `application.fam` mirrors MAJOR.MINOR.
-
-## Invariants
-
-- Long Back is never remappable.
-- Native LCD is 128×64; logical UI is 64×128 portrait.
-- Layout files store 3×6 grid geometry, not pixel coordinates.
-- IR protocol bytes stay in `.ir` files, not engine/UI code.
-- Bluetooth bond secrets never belong in portable remote packages.
-- Stateful IR local state must not be presented as confirmed device state.
+`VERSION` is the source of truth; `application.fam` mirrors MAJOR.MINOR.
 
 ## License
 
 MIT.
-
-
-## v0.4.2 layout behavior
-
-- RELOAD clears stale UI/controller pointers before rescanning, then reloads the active remote only when needed.
-- Layout Editor navigation includes status and screen elements, not only runtime-focusable controls.
-- Move uses geometric reflow: different sizes such as 1×1 and 1×2 can exchange regions when a valid placement exists.
-- ADD first uses a free rectangle. If no rectangle exists, large presets use their preferred region and replace overlapping elements; adding a 3×3 D-pad therefore does not require manually deleting surrounding 1×1 buttons.
-- REPLACE changes the selected element to another preset. Same-type replacement preserves mappings/labels while allowing size changes such as screen 3×2 ↔ 3×3.
-
-
-## v0.4.3 cell occupancy
-
-Layout validity is now based on logical occupied cells rather than bounding rectangles.
-
-- Rectangular elements occupy every cell inside their Rect.
-- D-pad `d33` keeps a 3×3 bounding Rect for rendering, but occupies only the five cross cells.
-- The four D-pad corner cells are therefore true free slots for `btn11`.
-- A `1×2` or `2×1` element is also allowed to overlap the D-pad bounding Rect when every cell it actually needs is free.
-- Runtime focus and Layout Editor navigation use the same occupied-cell geometry, so controls placed in D-pad corners remain reachable.
