@@ -191,7 +191,17 @@ static void open_menu(UniApp* app, UniUiPage return_page) {
 
 static void close_menu(UniApp* app) {
     app->ui.page = app->menu_return_page;
-    if(app->ui.page == UniUiHome) app->ui.remote = NULL;
+    if(app->ui.page == UniUiHome) {
+        uni_state_engine_flush(&app->state_engine);
+        uni_state_engine_unload(&app->state_engine);
+        if(app->bt) uni_bt_transport_deactivate(app->bt);
+        uni_remote_store_unload_details(&app->store, app->ui.selected_remote);
+        app->ui.remote = NULL;
+        app->ui.last_signal[0] = '\0';
+        memset(&app->controller, 0, sizeof(app->controller));
+        app->controller.dpad_hold_key = UniKeyUnknown;
+        app->controller.pending_nav_key = UniKeyUnknown;
+    }
 }
 
 static void system_escape(UniApp* app) {
