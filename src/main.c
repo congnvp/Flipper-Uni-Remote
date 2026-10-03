@@ -69,6 +69,34 @@ static UniRemote* selected_remote_mut(UniApp* app) {
     return uni_remote_store_get_mut(&app->store, app->ui.selected_remote);
 }
 
+static bool remote_id_matches(const UniRemoteStore* store, size_t index, const char* id) {
+    const UniRemote* remote = uni_remote_store_get(store, index);
+    return remote && id && id[0] && strcmp(remote->id, id) == 0;
+}
+
+static void remember_runtime(UniApp* app) {
+    if(!app || !app->storage || !app->ui.remote) return;
+    snprintf(
+        app->settings.last_remote,
+        sizeof(app->settings.last_remote),
+        "%s",
+        app->ui.remote->id);
+    app->settings.last_page = app->controller.page_index;
+    app->settings.last_focus = app->controller.focus_index;
+    uni_settings_save(app->storage, &app->settings);
+}
+
+static void sync_home_category(UniApp* app) {
+    const size_t categories = uni_remote_store_category_count(&app->store);
+    if(categories == 0) {
+        app->ui.home_category = 0;
+        return;
+    }
+    app->ui.home_category =
+        uni_remote_store_category_for_remote(&app->store, app->ui.selected_remote);
+    if(app->ui.home_category >= categories) app->ui.home_category = 0;
+}
+
 static void load_actions_for_selected(UniApp* app) {
     const UniRemote* remote = selected_remote(app);
     if(remote) uni_action_engine_load(&app->actions, remote);
@@ -104,6 +132,18 @@ static void open_remote(UniApp* app) {
                 sizeof(app->ui.last_signal));
     }
     uni_controller_reset(&app->controller, app->ui.remote);
+    if(strcmp(app->settings.last_remote, app->ui.remote->id) == 0 &&
+       app->settings.last_page < app->ui.remote->page_count &&
+       app->settings.last_focus < app->ui.remote->element_count) {
+        const size_t focus = app->settings.last_focus;
+        const UniElement* element = &app->ui.remote->elements[focus];
+        if(element->page == app->settings.last_page && uni_element_focusable(element)) {
+            app->controller.page_index = (uint8_t)app->settings.last_page;
+            app->controller.focus_index = focus;
+            app->controller.dpad_captured = false;
+            app->controller.dpad_alt = false;
+        }
+    }
 }
 
 static void open_menu(UniApp* app, UniUiPage return_page) {
@@ -121,6 +161,7 @@ static void system_escape(UniApp* app) {
     if(app->ui.page == UniUiHome) {
         app->running = false;
     } else {
+        remember_runtime(app);
         uni_state_engine_flush(&app->state_engine);
         uni_state_engine_unload(&app->state_engine);
         uni_remote_store_unload_details(&app->store, app->ui.selected_remote);
@@ -157,6 +198,7 @@ static void open_layout_editor(UniApp* app) {
 }
 
 static void reload_remotes(UniApp* app) {
+    if(app->ui.remote) remember_runtime(app);
     uni_state_engine_flush(&app->state_engine);
     uni_state_engine_unload(&app->state_engine);
     char keep_id[UNI_ID_MAX] = {0};
@@ -184,6 +226,9 @@ static void reload_remotes(UniApp* app) {
 
     app->ui.selected_remote =
         keep_id[0] ? uni_remote_store_find_id(&app->store, keep_id) : 0;
+    if(!remote_id_matches(&app->store, app->ui.selected_remote, keep_id))
+        app->ui.selected_remote = 0;
+    sync_home_category(app);
 
     if(restore_remote) {
         if(uni_remote_store_load_details(&app->store, app->ui.selected_remote)) {
@@ -253,18 +298,41 @@ static void dispatch_remote_action(UniApp* app) {
 }
 
 static void handle_home(UniApp* app, const InputEvent* event, UniKey key) {
-    const size_t count = uni_remote_store_count(&app->store);
+    const size_t categories = uni_remote_store_category_count(&app->store);
     if(key == UniKeyBack && event->type == InputTypeShort) {
         open_menu(app, UniUiHome);
         return;
     }
-    if(event->type != InputTypeShort || count == 0) return;
+    if(event->type != InputTypeShort || categories == 0) return;
+
+    if(key == UniKeyLeft || key == UniKeyRight) {
+        if(key == UniKeyLeft) {
+            app->ui.home_category =
+                app->ui.home_category == 0 ? categories - 1 : app->ui.home_category - 1;
+        } else {
+            app->ui.home_category = (app->ui.home_category + 1) % categories;
+        }
+        const size_t first =
+            uni_remote_store_category_remote_at(&app->store, app->ui.home_category, 0);
+        if(first < uni_remote_store_count(&app->store)) app->ui.selected_remote = first;
+        return;
+    }
+
+    const size_t count =
+        uni_remote_store_category_remote_count(&app->store, app->ui.home_category);
+    if(count == 0) return;
+    size_t position =
+        uni_remote_store_category_position(
+            &app->store, app->ui.home_category, app->ui.selected_remote);
 
     if(key == UniKeyUp) {
+        position = position == 0 ? count - 1 : position - 1;
         app->ui.selected_remote =
-            app->ui.selected_remote == 0 ? count - 1 : app->ui.selected_remote - 1;
+            uni_remote_store_category_remote_at(&app->store, app->ui.home_category, position);
     } else if(key == UniKeyDown) {
-        app->ui.selected_remote = (app->ui.selected_remote + 1) % count;
+        position = (position + 1) % count;
+        app->ui.selected_remote =
+            uni_remote_store_category_remote_at(&app->store, app->ui.home_category, position);
     } else if(key == UniKeyOk) {
         open_remote(app);
     }
@@ -374,6 +442,37 @@ static void handle_global(UniApp* app, const InputEvent* event, UniKey key) {
     }
 }
 
+static void cycle_remote_folder(UniApp* app, int direction) {
+    UniRemote* remote = selected_remote_mut(app);
+    if(!remote || direction == 0) return;
+
+    const size_t folder_count = uni_remote_store_folder_count(&app->store);
+    size_t current = 0;
+    bool found = !remote->folder[0];
+    if(remote->folder[0]) {
+        for(size_t i = 0; i < folder_count; i++) {
+            char name[UNI_FOLDER_MAX] = {0};
+            if(uni_remote_store_folder_name(&app->store, i, name, sizeof(name)) &&
+               strcmp(name, remote->folder) == 0) {
+                current = i + 1;
+                found = true;
+                break;
+            }
+        }
+    }
+    if(!found) current = 0;
+
+    const size_t option_count = folder_count + 1;
+    if(direction < 0) current = current == 0 ? option_count - 1 : current - 1;
+    else current = (current + 1) % option_count;
+
+    char folder[UNI_FOLDER_MAX] = {0};
+    if(current > 0)
+        uni_remote_store_folder_name(&app->store, current - 1, folder, sizeof(folder));
+    uni_remote_store_set_folder(&app->store, app->ui.selected_remote, folder);
+    refresh_remote_pointer(app);
+}
+
 static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey key) {
     if(key == UniKeyBack && event->type == InputTypeShort) {
         app->ui.page = UniUiMenu;
@@ -383,7 +482,7 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
     if(event->type != InputTypeShort) return;
 
     if(key == UniKeyUp || key == UniKeyDown) {
-        menu_move(&app->ui, 6, key);
+        menu_move(&app->ui, 8, key);
         return;
     }
 
@@ -400,6 +499,17 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
         refresh_remote_pointer(app);
         break;
     case 1:
+        uni_remote_store_set_favorite(
+            &app->store,
+            app->ui.selected_remote,
+            !remote->favorite);
+        refresh_remote_pointer(app);
+        break;
+    case 2:
+        if(key == UniKeyLeft) cycle_remote_folder(app, -1);
+        else if(key == UniKeyRight || key == UniKeyOk) cycle_remote_folder(app, 1);
+        break;
+    case 3:
         if(key == UniKeyOk) {
             snprintf(
                 app->settings.default_remote,
@@ -409,10 +519,10 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
             save_global(app);
         }
         break;
-    case 2:
+    case 4:
         if(key == UniKeyOk) open_layout_editor(app);
         break;
-    case 3:
+    case 5:
         if(key == UniKeyOk) {
             if(!uni_remote_store_load_details(&app->store, app->ui.selected_remote)) break;
             app->ui.remote = selected_remote(app);
@@ -421,10 +531,11 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
             app->ui.menu_index = 0;
         }
         break;
-    case 4:
+    case 6:
         break;
-    case 5:
+    case 7:
         if(key == UniKeyOk) {
+            sync_home_category(app);
             app->ui.page = UniUiMenu;
             app->ui.menu_index = 0;
         }
@@ -959,15 +1070,31 @@ int32_t uni_remote_app(void* p) {
     app->ui.store = &app->store;
     app->ui.settings = &app->settings;
     app->ui.action_engine = &app->actions;
-    app->ui.selected_remote =
-        settings_ok ?
-            uni_remote_store_find_id(&app->store, app->settings.default_remote) :
-            0;
+    app->ui.selected_remote = 0;
+    if(settings_ok && app->settings.last_remote[0]) {
+        const size_t last = uni_remote_store_find_id(&app->store, app->settings.last_remote);
+        if(remote_id_matches(&app->store, last, app->settings.last_remote))
+            app->ui.selected_remote = last;
+    } else if(settings_ok) {
+        const size_t fallback =
+            uni_remote_store_find_id(&app->store, app->settings.default_remote);
+        if(remote_id_matches(&app->store, fallback, app->settings.default_remote))
+            app->ui.selected_remote = fallback;
+    }
+    sync_home_category(app);
     app->ui.tx_ok = true;
     app->ui.dpad_hold_key = UniKeyUnknown;
     app->menu_return_page = UniUiHome;
 
-    if(app->running && app->settings.open_default) open_remote(app);
+    if(app->running && app->settings.open_default) {
+        const size_t default_index =
+            uni_remote_store_find_id(&app->store, app->settings.default_remote);
+        if(remote_id_matches(&app->store, default_index, app->settings.default_remote)) {
+            app->ui.selected_remote = default_index;
+            sync_home_category(app);
+        }
+        open_remote(app);
+    }
 
     if(app->running) {
         view_port_draw_callback_set(app->view_port, uni_draw_callback, app);
@@ -993,6 +1120,7 @@ int32_t uni_remote_app(void* p) {
         gui_remove_view_port(app->gui, app->view_port);
     }
 
+    if(app->ui.remote) remember_runtime(app);
     for(size_t i = 0; i < uni_remote_store_count(&app->store); i++) {
         uni_remote_store_unload_details(&app->store, i);
     }
