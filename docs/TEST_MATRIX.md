@@ -10,7 +10,7 @@ Status values: `PASS`, `FAIL`, `TBD`, `N/A`.
 | --- | --- | --- | --- | --- | --- |
 | v0.4.3 engine baseline | PASS | PASS* | TBD | N/A | GitHub Actions run #40 passed. Runtime features are present in code/docs; hardware evidence is tracked per device below. |
 | Example living_tv | PASS | PASS* | TBD | N/A | Example package exists; not a substitute for target-device verification. |
-| Sony RM-PJ8 | TBD | TBD | TBD | N/A | M1.1 |
+| Sony RM-PJ8 | PASS | TBD | TBD | N/A | PR #10 / Actions #165: version check, uFBT build, artifact and lint passed. Profile contains all 22 captured SIRC15/SIRC20 signals with IrBurst=3. Runtime load and physical TX still require Flipper hardware. |
 | Optoma HR21G-YHGD03 | TBD | TBD | TBD | N/A | M1.2 |
 | LG AC | TBD | TBD | TBD | TBD | M2 adapter 1 |
 | Daikin ARC433A73 | TBD | TBD | TBD | TBD | M2 adapter 2 |
