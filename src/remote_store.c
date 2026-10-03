@@ -310,6 +310,8 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         if(!parse_transport(transport_text, &remote->transport)) break;
         ff_read_u32(ff, "Order", &remote->order, false);
         ff_read_bool(ff, "RepeatEnabled", &remote->repeat_enabled, false);
+        ff_read_bool(ff, "Favourite", &remote->favorite, false);
+        ff_read_string(ff, "Folder", remote->folder, sizeof(remote->folder), false);
         if(!ff_read_u32(ff, "PageCount", &page_count, false) ||
            page_count == 0 || page_count > UNI_MAX_PAGES) {
             break;
@@ -502,6 +504,8 @@ bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
         if(!write_string(ff, "Transport", transport)) break;
         if(!flipper_format_write_uint32(ff, "Order", &remote->order, 1)) break;
         if(!flipper_format_write_bool(ff, "RepeatEnabled", &remote->repeat_enabled, 1)) break;
+        if(!flipper_format_write_bool(ff, "Favourite", &remote->favorite, 1)) break;
+        if(!write_string(ff, "Folder", remote->folder)) break;
         uint32_t page_count = remote->page_count ? remote->page_count : 1;
         uint32_t ir_burst = remote->ir_burst ? remote->ir_burst : 1;
         if(!flipper_format_write_uint32(ff, "PageCount", &page_count, 1)) break;
@@ -638,11 +642,229 @@ size_t uni_remote_store_find_id(const UniRemoteStore* store, const char* id) {
     return 0;
 }
 
+static bool store_has_favorites(const UniRemoteStore* store) {
+    if(!store) return false;
+    for(size_t i = 0; i < store->count; i++) {
+        if(store->remotes[i].favorite) return true;
+    }
+    return false;
+}
+
+static bool store_has_uncategorized(const UniRemoteStore* store) {
+    if(!store) return false;
+    for(size_t i = 0; i < store->count; i++) {
+        if(!store->remotes[i].folder[0]) return true;
+    }
+    return false;
+}
+
+static bool folder_is_first_occurrence(const UniRemoteStore* store, size_t index) {
+    if(!store || index >= store->count || !store->remotes[index].folder[0]) return false;
+    for(size_t i = 0; i < index; i++) {
+        if(strcmp(store->remotes[i].folder, store->remotes[index].folder) == 0) return false;
+    }
+    return true;
+}
+
+size_t uni_remote_store_folder_count(const UniRemoteStore* store) {
+    if(!store) return 0;
+    size_t count = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(folder_is_first_occurrence(store, i)) count++;
+    }
+    return count;
+}
+
+bool uni_remote_store_folder_name(
+    const UniRemoteStore* store,
+    size_t folder_index,
+    char* out,
+    size_t out_size) {
+    if(!store || !out || out_size == 0) return false;
+    size_t current = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(!folder_is_first_occurrence(store, i)) continue;
+        if(current++ == folder_index) {
+            snprintf(out, out_size, "%s", store->remotes[i].folder);
+            return true;
+        }
+    }
+    out[0] = '\0';
+    return false;
+}
+
+size_t uni_remote_store_category_count(const UniRemoteStore* store) {
+    if(!store || store->count == 0) return 0;
+    size_t count = uni_remote_store_folder_count(store);
+    if(store_has_favorites(store)) count++;
+    if(store_has_uncategorized(store)) count++;
+    return count;
+}
+
+static bool category_kind(
+    const UniRemoteStore* store,
+    size_t category_index,
+    bool* favorite,
+    bool* uncategorized,
+    char* folder,
+    size_t folder_size) {
+    if(!store || !favorite || !uncategorized || !folder || folder_size == 0) return false;
+    *favorite = false;
+    *uncategorized = false;
+    folder[0] = '\0';
+
+    const bool has_fav = store_has_favorites(store);
+    const size_t folder_count = uni_remote_store_folder_count(store);
+    size_t cursor = 0;
+
+    if(has_fav) {
+        if(category_index == cursor) {
+            *favorite = true;
+            return true;
+        }
+        cursor++;
+    }
+
+    if(category_index >= cursor && category_index < cursor + folder_count) {
+        return uni_remote_store_folder_name(
+            store,
+            category_index - cursor,
+            folder,
+            folder_size);
+    }
+    cursor += folder_count;
+
+    if(store_has_uncategorized(store) && category_index == cursor) {
+        *uncategorized = true;
+        return true;
+    }
+    return false;
+}
+
+bool uni_remote_store_category_name(
+    const UniRemoteStore* store,
+    size_t category_index,
+    char* out,
+    size_t out_size) {
+    if(!out || out_size == 0) return false;
+    bool favorite = false;
+    bool uncategorized = false;
+    char folder[UNI_FOLDER_MAX] = {0};
+    if(!category_kind(
+           store,
+           category_index,
+           &favorite,
+           &uncategorized,
+           folder,
+           sizeof(folder))) {
+        out[0] = '\0';
+        return false;
+    }
+    if(favorite) snprintf(out, out_size, "FAVOURITE");
+    else if(uncategorized) snprintf(out, out_size, "UNCATEGORIZED");
+    else snprintf(out, out_size, "%s", folder);
+    return true;
+}
+
+static bool remote_in_category(
+    const UniRemoteStore* store,
+    size_t category_index,
+    size_t remote_index) {
+    if(!store || remote_index >= store->count) return false;
+    bool favorite = false;
+    bool uncategorized = false;
+    char folder[UNI_FOLDER_MAX] = {0};
+    if(!category_kind(
+           store,
+           category_index,
+           &favorite,
+           &uncategorized,
+           folder,
+           sizeof(folder))) {
+        return false;
+    }
+
+    const UniRemote* remote = &store->remotes[remote_index];
+    if(favorite) return remote->favorite;
+    if(uncategorized) return !remote->folder[0];
+    return strcmp(remote->folder, folder) == 0;
+}
+
+size_t uni_remote_store_category_remote_count(
+    const UniRemoteStore* store,
+    size_t category_index) {
+    if(!store) return 0;
+    size_t count = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(remote_in_category(store, category_index, i)) count++;
+    }
+    return count;
+}
+
+size_t uni_remote_store_category_remote_at(
+    const UniRemoteStore* store,
+    size_t category_index,
+    size_t position) {
+    if(!store) return 0;
+    size_t current = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(!remote_in_category(store, category_index, i)) continue;
+        if(current++ == position) return i;
+    }
+    return store->count;
+}
+
+size_t uni_remote_store_category_for_remote(
+    const UniRemoteStore* store,
+    size_t remote_index) {
+    if(!store || remote_index >= store->count) return 0;
+    const size_t count = uni_remote_store_category_count(store);
+    for(size_t category = 0; category < count; category++) {
+        if(remote_in_category(store, category, remote_index)) return category;
+    }
+    return 0;
+}
+
+size_t uni_remote_store_category_position(
+    const UniRemoteStore* store,
+    size_t category_index,
+    size_t remote_index) {
+    if(!store) return 0;
+    size_t position = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(!remote_in_category(store, category_index, i)) continue;
+        if(i == remote_index) return position;
+        position++;
+    }
+    return 0;
+}
+
 bool uni_remote_store_set_repeat(UniRemoteStore* store, size_t remote_index, bool enabled) {
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     if(!remote) return false;
     remote->repeat_enabled = enabled;
+    return uni_remote_store_save(store, remote_index);
+}
+
+bool uni_remote_store_set_favorite(UniRemoteStore* store, size_t remote_index, bool enabled) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote) return false;
+    remote->favorite = enabled;
+    return uni_remote_store_save(store, remote_index);
+}
+
+bool uni_remote_store_set_folder(
+    UniRemoteStore* store,
+    size_t remote_index,
+    const char* folder) {
+    if(!folder || strchr(folder, '/') || strchr(folder, '\n') || strchr(folder, '\r')) return false;
+    if(strlen(folder) >= UNI_FOLDER_MAX) return false;
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote) return false;
+    snprintf(remote->folder, sizeof(remote->folder), "%s", folder);
     return uni_remote_store_save(store, remote_index);
 }
 
