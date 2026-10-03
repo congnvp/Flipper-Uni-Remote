@@ -124,6 +124,8 @@ def parse_actions(path: Path, signals: set[str]) -> set[str]:
             raise ProfileError(
                 f"{path}: Action{i}Id exceeds runtime limit {MAX_ACTION_ID_LEN}"
             )
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", action_id):
+            raise ProfileError(f"{path}: Action{i}Id contains unsupported characters")
         if action_id in actions:
             raise ProfileError(f"{path}: duplicate action id {action_id}")
 
