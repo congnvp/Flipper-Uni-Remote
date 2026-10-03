@@ -39,11 +39,13 @@ typedef struct {
 static void uni_draw_callback(Canvas* canvas, void* context) {
     UniApp* app = context;
     if(app->ui.page == UniUiLayoutEditor) {
+        app->ui.remote_page = app->ui.layout_page;
         app->ui.focus_index = app->ui.layout_element;
         app->ui.dpad_captured = false;
         app->ui.dpad_alt = false;
         app->ui.dpad_hold_key = UniKeyUnknown;
     } else {
+        app->ui.remote_page = app->controller.page_index;
         app->ui.focus_index = app->controller.focus_index;
         app->ui.dpad_captured = app->controller.dpad_captured;
         app->ui.dpad_alt = app->controller.dpad_alt;
@@ -73,6 +75,14 @@ static void load_actions_for_selected(UniApp* app) {
 static void refresh_remote_pointer(UniApp* app) {
     if(app->ui.remote) app->ui.remote = selected_remote(app);
     load_actions_for_selected(app);
+}
+
+static size_t first_element_on_page(const UniRemote* remote, uint8_t page) {
+    if(!remote || !remote->elements) return 0;
+    for(size_t i = 0; i < remote->element_count; i++) {
+        if(remote->elements[i].page == page) return i;
+    }
+    return remote->element_count;
 }
 
 static void open_remote(UniApp* app) {
@@ -120,7 +130,14 @@ static void open_layout_editor(UniApp* app) {
     app->controller.dpad_captured = false;
 
     /* Layout editing includes display-only elements such as status/screen. */
-    app->ui.layout_element = app->ui.remote->element_count ? 0 : 0;
+    app->ui.layout_page = app->controller.page_index < app->ui.remote->page_count ?
+                              app->controller.page_index :
+                              0;
+    app->ui.layout_element = first_element_on_page(app->ui.remote, app->ui.layout_page);
+    if(app->ui.layout_element >= app->ui.remote->element_count) {
+        app->ui.layout_page = 0;
+        app->ui.layout_element = first_element_on_page(app->ui.remote, 0);
+    }
     app->ui.layout_moving = false;
     app->ui.layout_replace_mode = false;
     app->ui.page = UniUiLayoutEditor;
@@ -140,6 +157,7 @@ static void reload_remotes(UniApp* app) {
      */
     app->ui.remote = NULL;
     app->ui.layout_element = 0;
+    app->ui.layout_page = 0;
     memset(&app->controller, 0, sizeof(app->controller));
     app->controller.dpad_hold_key = UniKeyUnknown;
     app->controller.pending_nav_key = UniKeyUnknown;
@@ -384,11 +402,11 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
     }
 }
 
-static void layout_select(UniApp* app, UniKey key) {
+static bool layout_select(UniApp* app, UniKey key) {
     if(!app->ui.remote || !app->ui.remote->elements ||
        app->ui.remote->element_count == 0 ||
        app->ui.layout_element >= app->ui.remote->element_count) {
-        return;
+        return false;
     }
 
     int8_t dx = 0;
@@ -397,7 +415,7 @@ static void layout_select(UniApp* app, UniKey key) {
     else if(key == UniKeyRight) dx = 1;
     else if(key == UniKeyUp) dy = -1;
     else if(key == UniKeyDown) dy = 1;
-    else return;
+    else return false;
 
     const UniElement* current = &app->ui.remote->elements[app->ui.layout_element];
     int best_score = 10000;
@@ -410,6 +428,7 @@ static void layout_select(UniApp* app, UniKey key) {
     for(size_t i = 0; i < app->ui.remote->element_count; i++) {
         if(i == app->ui.layout_element) continue;
         const UniElement* candidate = &app->ui.remote->elements[i];
+        if(candidate->page != app->ui.layout_page) continue;
         const int score = uni_element_direction_score(current, candidate, dx, dy);
         if(score >= 0 && score < best_score) {
             best_score = score;
@@ -417,7 +436,30 @@ static void layout_select(UniApp* app, UniKey key) {
         }
     }
 
+    if(best_index == app->ui.layout_element) return false;
     app->ui.layout_element = best_index;
+    return true;
+}
+
+static bool layout_change_page(UniApp* app, int8_t delta) {
+    const UniRemote* remote = app->ui.remote;
+    if(!remote || remote->page_count <= 1 || delta == 0) return false;
+
+    const uint8_t count = remote->page_count;
+    for(uint8_t attempt = 0; attempt < count; attempt++) {
+        int next = (int)app->ui.layout_page + delta;
+        if(next < 0) next += count;
+        if(next >= count) next -= count;
+        app->ui.layout_page = (uint8_t)next;
+
+        const size_t first = first_element_on_page(remote, app->ui.layout_page);
+        if(first < remote->element_count) {
+            app->ui.layout_element = first;
+            app->ui.layout_moving = false;
+            return true;
+        }
+    }
+    return false;
 }
 
 static void layout_move(UniApp* app, UniKey key) {
@@ -453,8 +495,13 @@ static void handle_layout_editor(UniApp* app, const InputEvent* event, UniKey ke
         return;
     }
     if(event->type != InputTypePress) return;
-    if(app->ui.layout_moving) layout_move(app, key);
-    else layout_select(app, key);
+    if(app->ui.layout_moving) {
+        layout_move(app, key);
+    } else {
+        const bool moved = layout_select(app, key);
+        if(!moved && key == UniKeyLeft) layout_change_page(app, -1);
+        else if(!moved && key == UniKeyRight) layout_change_page(app, 1);
+    }
 }
 
 static void handle_layout_tools(UniApp* app, const InputEvent* event, UniKey key) {
@@ -559,6 +606,7 @@ static void handle_add_element(UniApp* app, const InputEvent* event, UniKey key)
             &app->store,
             app->ui.selected_remote,
             app->ui.menu_index,
+            app->ui.layout_page,
             &index);
     }
 
@@ -591,7 +639,8 @@ static void handle_layout_preset(UniApp* app, const InputEvent* event, UniKey ke
         refresh_remote_pointer(app);
         uni_controller_reset(&app->controller, app->ui.remote);
         app->controller.dpad_captured = false;
-        app->ui.layout_element = app->ui.remote && app->ui.remote->element_count ? 0 : 0;
+        app->ui.layout_page = 0;
+        app->ui.layout_element = first_element_on_page(app->ui.remote, 0);
         app->ui.page = UniUiLayoutEditor;
     }
 }
