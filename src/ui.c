@@ -327,14 +327,18 @@ static void draw_dpad(
 static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
     const UniElement* e=&state->remote->elements[index];
     const bool focused=uni_element_focusable(e)&&index==state->focus_index;
+    const bool pressed=
+        focused && index==state->press_flash_index &&
+        furi_get_tick()<state->press_flash_until;
+    const bool active=focused!=pressed;
     int16_t x,y,w,h; grid_rect(e,&x,&y,&w,&h);
     switch(e->type) {
     case UniElementStatus: draw_status(canvas,state,e); break;
     case UniElementScreen: draw_screen(canvas,state,e); break;
-    case UniElementButton: draw_button(canvas,e,x,y,w,h,focused); break;
-    case UniElementHStep: draw_hstep(canvas,e,x,y,w,h,focused); break;
-    case UniElementVStep: draw_vstep(canvas,e,x,y,w,h,focused); break;
-    case UniElementDpad: draw_dpad(canvas,state,e,x,y,w,h,focused); break;
+    case UniElementButton: draw_button(canvas,e,x,y,w,h,active); break;
+    case UniElementHStep: draw_hstep(canvas,e,x,y,w,h,active); break;
+    case UniElementVStep: draw_vstep(canvas,e,x,y,w,h,active); break;
+    case UniElementDpad: draw_dpad(canvas,state,e,x,y,w,h,active); break;
     }
 }
 
@@ -379,6 +383,25 @@ static size_t scroll_start(size_t selected,size_t count) {
     return selected-2;
 }
 
+static void draw_home_row(
+    Canvas* canvas,
+    int16_t y,
+    const char* label,
+    const char* value,
+    bool active) {
+    if(active) fill_rect(canvas,1,y,62,15,ColorBlack);
+    const Color color=active?ColorWhite:ColorBlack;
+
+    char clipped[13]={0};
+    snprintf(clipped,sizeof(clipped),"%.12s",label?label:"");
+    text3(canvas,clipped,4,y+5,color);
+
+    if(value&&value[0]) {
+        const int16_t tw=text_width3(value);
+        text3(canvas,value,60-tw,y+5,color);
+    }
+}
+
 static void draw_home(Canvas* canvas,const UniUiState* state) {
     char category[13]={0};
     if(!uni_remote_store_category_name(
@@ -405,7 +428,7 @@ static void draw_home(Canvas* canvas,const UniUiState* state) {
         if(!r) continue;
         char right[5]={0};
         snprintf(right,sizeof(right),"%s%.2s",r->favorite?"*":"",uni_transport_label(r->transport));
-        draw_menu_row(
+        draw_home_row(
             canvas,
             24+(int16_t)row*19,
             r->name,
@@ -466,11 +489,12 @@ static void draw_layout_editor(Canvas* canvas,const UniUiState* state) {
 }
 
 static void draw_layout_tools(Canvas* canvas,const UniUiState* state) {
-    static const char* labels[]={"ADD","REPLACE","REMOVE","MAP","ICON","TEMPLATE","DONE"};
+    static const char* labels[]={
+        "ADD","REPLACE","REMOVE","MAP","ICON","LABEL","PAGE","TEMPLATE","DONE"};
     draw_menu_header(canvas,"LAYOUT TOOLS");
-    const size_t start=scroll_start(state->menu_index,7);
+    const size_t count=9,start=scroll_start(state->menu_index,count);
     for(size_t row=0;row<5;row++) {
-        const size_t i=start+row; if(i>=7) break;
+        const size_t i=start+row; if(i>=count) break;
         draw_menu_row(canvas,24+(int16_t)row*19,labels[i],"",i==state->menu_index);
     }
 }
@@ -601,6 +625,52 @@ static void draw_keymap(Canvas* canvas,const UniUiState* state) {
     }
 }
 
+static void draw_text_edit(Canvas* canvas,const UniUiState* state) {
+    draw_menu_header(canvas,state->text_target==UniTextFolder?"EDIT FOLDER":"EDIT LABEL");
+
+    const size_t window=12;
+    size_t start=0;
+    if(state->text_cursor>=window) start=state->text_cursor-window+1;
+
+    char visible[13]={0};
+    for(size_t i=0;i<window && start+i<state->text_limit;i++) {
+        const char ch=state->text_buffer[start+i];
+        visible[i]=ch?ch:' ';
+    }
+    text3(canvas,visible,6,45,ColorBlack);
+
+    const size_t cursor=state->text_cursor-start;
+    if(cursor<window) hline(canvas,6+(int16_t)cursor*4,52,3,ColorBlack);
+
+    text_center3(canvas,"UD CHAR LR MOVE",32,72,ColorBlack);
+    text_center3(canvas,"OK SAVE",32,91,ColorBlack);
+    text_center3(canvas,"BACK CANCEL",32,110,ColorBlack);
+}
+
+static void draw_page_pick(Canvas* canvas,const UniUiState* state) {
+    const UniRemote* remote=state->remote?
+        state->remote:uni_remote_store_get(state->store,state->selected_remote);
+    draw_menu_header(canvas,"MOVE TO PAGE");
+    if(!remote) return;
+
+    const size_t count=remote->page_count+(remote->page_count<UNI_MAX_PAGES?1:0);
+    const size_t start=scroll_start(state->menu_index,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t i=start+row;
+        char label[12]={0};
+        const char* value="";
+        if(i<remote->page_count) {
+            snprintf(label,sizeof(label),"PAGE %lu",(unsigned long)(i+1));
+            if(state->layout_element<remote->element_count &&
+               remote->elements[state->layout_element].page==i) value="NOW";
+        } else {
+            snprintf(label,sizeof(label),"NEW PAGE");
+            value="+";
+        }
+        draw_menu_row(canvas,24+(int16_t)row*19,label,value,i==state->menu_index);
+    }
+}
+
 void uni_ui_draw(Canvas* canvas,const UniUiState* state) {
     canvas_clear(canvas); canvas_set_color(canvas,ColorBlack);
     switch(state->page) {
@@ -619,6 +689,8 @@ void uni_ui_draw(Canvas* canvas,const UniUiState* state) {
     case UniUiIconField: draw_icon_field(canvas,state); break;
     case UniUiIconPick: draw_icon_pick(canvas,state); break;
     case UniUiKeymap: draw_keymap(canvas,state); break;
+    case UniUiTextEdit: draw_text_edit(canvas,state); break;
+    case UniUiPagePick: draw_page_pick(canvas,state); break;
     }
     canvas_set_color(canvas,ColorBlack);
 }
