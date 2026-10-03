@@ -1337,3 +1337,58 @@ bool uni_remote_store_set_hard_binding(
         binding ? binding : "");
     return uni_remote_store_save(store, remote_index);
 }
+
+bool uni_remote_store_import_ir(
+    UniRemoteStore* store,
+    size_t remote_index,
+    const char* source_path) {
+    if(!store || !source_path || !source_path[0]) return false;
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || remote->transport != UniTransportInfrared) return false;
+
+    FlipperFormat* source = flipper_format_file_alloc(store->storage);
+    if(!source) return false;
+    FuriString* filetype = furi_string_alloc();
+    uint32_t version = 0;
+    bool valid = false;
+    if(flipper_format_file_open_existing(source, source_path)) {
+        valid = flipper_format_read_header(source, filetype, &version) &&
+                strcmp(furi_string_get_cstr(filetype), "IR signals file") == 0 &&
+                version == 1U;
+        flipper_format_file_close(source);
+    }
+    furi_string_free(filetype);
+    flipper_format_free(source);
+    if(!valid) return false;
+
+    char dir[UNI_PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", remote->config_path);
+    char* slash = strrchr(dir, '/');
+    if(!slash) return false;
+    *slash = '\0';
+
+    char destination[UNI_PATH_MAX];
+    char temporary[UNI_PATH_MAX];
+    snprintf(destination, sizeof(destination), "%.145s/signals.ir", dir);
+    snprintf(temporary, sizeof(temporary), "%.145s/signals.tmp", dir);
+
+    if(strcmp(source_path, destination) != 0) {
+        storage_common_remove(store->storage, temporary);
+        if(storage_common_copy(store->storage, source_path, temporary) != FSE_OK) {
+            storage_common_remove(store->storage, temporary);
+            return false;
+        }
+
+        storage_common_remove(store->storage, destination);
+        if(storage_common_rename(store->storage, temporary, destination) != FSE_OK) {
+            storage_common_remove(store->storage, temporary);
+            return false;
+        }
+    }
+
+    snprintf(remote->signal_file, sizeof(remote->signal_file), "signals.ir");
+    snprintf(remote->signal_path, sizeof(remote->signal_path), "%s", destination);
+    return uni_remote_store_save(store, remote_index);
+}
