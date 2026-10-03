@@ -56,6 +56,7 @@ typedef struct {
     bool button_pressed;
     bool tx_ok;
     char last_signal[UNI_LAST_SIGNAL_MAX];
+    char status_text[16];
 
     size_t menu_index;
     size_t layout_element;
