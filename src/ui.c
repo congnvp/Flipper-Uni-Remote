@@ -328,10 +328,16 @@ static void draw_dpad(
     draw_dpad_direction(canvas,e,UniKeyRight,x+2*cw+(w-2*cw)/2,cy+ch/2,color,state->dpad_alt,state->dpad_hold_key==UniKeyRight);
     draw_dpad_direction(canvas,e,UniKeyDown,cx+cw/2,y+2*ch+(h-2*ch)/2,color,state->dpad_alt,state->dpad_hold_key==UniKeyDown);
 
-    if(state->dpad_alt && e->ok_hold_icon[0])
+    if(state->dpad_alt && e->ok_hold_icon[0]) {
         draw_icon_id(canvas,e->ok_hold_icon,cx+cw/2,cy+ch/2,color,"OK");
-    else
-        circle(canvas,cx+cw/2,cy+ch/2,4,color);
+    } else {
+        const int16_t ok_x = cx + cw / 2;
+        const int16_t ok_y = cy + ch / 2;
+        circle(canvas,ok_x,ok_y,4,color);
+        if(focused && !state->dpad_captured) {
+            fill_rect(canvas,ok_x-1,ok_y-1,3,3,ColorBlack);
+        }
+    }
 }
 
 static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
