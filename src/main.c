@@ -104,6 +104,50 @@ static void load_actions_for_selected(UniApp* app) {
     if(remote) uni_action_engine_load(&app->actions, remote);
 }
 
+static bool prepare_remote_transport(UniApp* app) {
+    if(!app || !app->ui.remote) return false;
+
+    app->ui.tx_ok = true;
+    app->ui.last_signal[0] = '\0';
+
+    if(app->ui.remote->transport == UniTransportInfrared) {
+        return true;
+    }
+
+    if(app->ui.remote->transport == UniTransportStatefulIr) {
+        app->ui.tx_ok = uni_state_engine_load(&app->state_engine, app->ui.remote);
+        if(app->ui.tx_ok) {
+            uni_state_engine_summary(
+                &app->state_engine,
+                app->ui.last_signal,
+                sizeof(app->ui.last_signal));
+        } else {
+            snprintf(
+                app->ui.last_signal,
+                sizeof(app->ui.last_signal),
+                "STATE ERR");
+        }
+        return app->ui.tx_ok;
+    }
+
+    if(app->ui.remote->transport == UniTransportBluetoothHid) {
+        app->ui.tx_ok = app->bt && uni_bt_transport_activate(app->bt, app->ui.remote);
+        snprintf(
+            app->ui.last_signal,
+            sizeof(app->ui.last_signal),
+            "%s",
+            app->ui.tx_ok ? "PAIRING" : "BT ERROR");
+        return app->ui.tx_ok;
+    }
+
+    app->ui.tx_ok = false;
+    snprintf(
+        app->ui.last_signal,
+        sizeof(app->ui.last_signal),
+        "NO TRANS");
+    return false;
+}
+
 static void refresh_remote_pointer(UniApp* app) {
     if(app->ui.remote) app->ui.remote = selected_remote(app);
     load_actions_for_selected(app);
@@ -123,23 +167,7 @@ static void open_remote(UniApp* app) {
     if(!app->ui.remote || !app->ui.remote->elements_loaded) return;
     load_actions_for_selected(app);
     app->ui.page = UniUiRemote;
-    app->ui.last_signal[0] = '\0';
-    app->ui.tx_ok = true;
-    if(app->ui.remote->transport == UniTransportStatefulIr) {
-        app->ui.tx_ok = uni_state_engine_load(&app->state_engine, app->ui.remote);
-        if(app->ui.tx_ok)
-            uni_state_engine_summary(
-                &app->state_engine,
-                app->ui.last_signal,
-                sizeof(app->ui.last_signal));
-    } else if(app->ui.remote->transport == UniTransportBluetoothHid) {
-        app->ui.tx_ok = app->bt && uni_bt_transport_activate(app->bt, app->ui.remote);
-        snprintf(
-            app->ui.last_signal,
-            sizeof(app->ui.last_signal),
-            "%s",
-            app->ui.tx_ok ? "PAIRING" : "BT ERROR");
-    }
+    prepare_remote_transport(app);
     uni_controller_reset(&app->controller, app->ui.remote);
     if(strcmp(app->settings.last_remote, app->ui.remote->id) == 0 &&
        app->settings.last_page < app->ui.remote->page_count &&
@@ -245,7 +273,10 @@ static void reload_remotes(UniApp* app) {
         if(uni_remote_store_load_details(&app->store, app->ui.selected_remote)) {
             app->ui.remote = selected_remote(app);
             load_actions_for_selected(app);
-            if(app->ui.remote) uni_controller_reset(&app->controller, app->ui.remote);
+            if(app->ui.remote) {
+                prepare_remote_transport(app);
+                uni_controller_reset(&app->controller, app->ui.remote);
+            }
         } else {
             app->menu_return_page = UniUiHome;
         }
@@ -278,7 +309,6 @@ static const UniNamedAction* sequence_at(const UniActionCatalog* catalog, size_t
 static void dispatch_remote_action(UniApp* app) {
     if(!app->controller.action_ready || !app->ui.remote) return;
 
-    app->ui.tx_flash = true;
     if(app->ui.remote->transport == UniTransportInfrared) {
         snprintf(
             app->ui.last_signal,
@@ -316,7 +346,9 @@ static void dispatch_remote_action(UniApp* app) {
     } else {
         app->ui.tx_ok = false;
     }
-    app->ui.tx_flash = false;
+    if(app->ui.tx_ok) {
+        app->ui.tx_flash_until = furi_get_tick() + furi_ms_to_ticks(250);
+    }
     app->controller.action_ready = false;
 }
 
