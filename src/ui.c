@@ -509,9 +509,17 @@ static void draw_map_field(Canvas* canvas,const UniUiState* state) {
 }
 
 static void draw_map_kind(Canvas* canvas,const UniUiState* state) {
-    static const char* labels[]={"SIGNAL","SEQUENCE","CLEAR","BACK"};
+    const UniRemote* remote=state->remote?state->remote:uni_remote_store_get(state->store,state->selected_remote);
     draw_menu_header(canvas,"ACTION TYPE");
-    for(size_t i=0;i<4;i++) draw_menu_row(canvas,26+(int16_t)i*21,labels[i],"",i==state->menu_index);
+    if(remote&&remote->transport!=UniTransportInfrared) {
+        static const char* labels[]={"ACTION","CLEAR","BACK"};
+        for(size_t i=0;i<3;i++)
+            draw_menu_row(canvas,26+(int16_t)i*21,labels[i],"",i==state->menu_index);
+    } else {
+        static const char* labels[]={"SIGNAL","SEQUENCE","CLEAR","BACK"};
+        for(size_t i=0;i<4;i++)
+            draw_menu_row(canvas,26+(int16_t)i*21,labels[i],"",i==state->menu_index);
+    }
 }
 
 static size_t sequence_count(const UniActionCatalog* catalog) {
@@ -530,20 +538,31 @@ static const UniNamedAction* sequence_at(const UniActionCatalog* catalog,size_t 
 }
 
 static void draw_map_pick(Canvas* canvas,const UniUiState* state) {
+    const UniRemote* remote=state->remote?state->remote:uni_remote_store_get(state->store,state->selected_remote);
+    const bool transport_action=remote&&remote->transport!=UniTransportInfrared;
     const bool signal=state->picker_kind==UniPickSignal;
-    draw_menu_header(canvas,signal?"SIGNAL":"SEQUENCE");
-    const size_t count=signal?state->action_engine->signals.count:sequence_count(&state->action_engine->actions);
+    draw_menu_header(canvas,transport_action?"ACTION":(signal?"SIGNAL":"SEQUENCE"));
+    const size_t count=transport_action?
+        uni_editor_transport_action_count(remote):
+        (signal?state->action_engine->signals.count:sequence_count(&state->action_engine->actions));
     if(count==0) { text_center3(canvas,"EMPTY",32,58,ColorBlack); return; }
     const size_t start=scroll_start(state->menu_index,count);
     for(size_t row=0;row<5 && start+row<count;row++) {
         const size_t i=start+row;
         const char* name="";
-        if(signal) name=state->action_engine->signals.names[i];
-        else {
+        const char* right="";
+        if(transport_action) {
+            name=uni_editor_transport_action_label(remote,i);
+            right=remote->transport==UniTransportBluetoothHid?"BT":"ST";
+        } else if(signal) {
+            name=state->action_engine->signals.names[i];
+            right="SIG";
+        } else {
             const UniNamedAction* a=sequence_at(&state->action_engine->actions,i);
             name=a?a->id:"";
+            right="SEQ";
         }
-        draw_menu_row(canvas,24+(int16_t)row*19,name,signal?"SIG":"SEQ",i==state->menu_index);
+        draw_menu_row(canvas,24+(int16_t)row*19,name,right,i==state->menu_index);
     }
 }
 
