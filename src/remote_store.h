@@ -64,3 +64,8 @@ bool uni_remote_store_set_hard_binding(
     size_t remote_index,
     UniHardKeySlot slot,
     const char* binding);
+
+bool uni_remote_store_import_ir(
+    UniRemoteStore* store,
+    size_t remote_index,
+    const char* source_path);
