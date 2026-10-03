@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.9.0] - 2026-10-03
+
+Software-complete release candidate for the current v1 scope. Physical target validation is still required before v1.0.0.
+
+### Added
+
+- Generic 1..16 page remote layouts with page-aware runtime/editor navigation.
+- Per-remote parsed-IR burst count.
+- Sony RM-PJ8 regression profile with all 22 known SIRC commands.
+- Optoma HR21G-YHGD03 regression profile with all 18 known NEC commands.
+- Executable `STATE_IR` state engine and `state.urs` persistence.
+- LG AC stateful adapter ported from the known-working LG project.
+- Daikin ARC433A73 stateful adapter ported from the known-working Daikin project.
+- Favourite, user folders and UNCATEGORIZED library views.
+- Last remote/page/focus restore.
+- BLE HID transport with profile-scoped bond storage and identity.
+- Bluetooth Media regression profile.
+- Transport-aware on-device Map editor for IR, stateful IR and Bluetooth actions.
+- Static package validator for paths, bindings, actions, icons, pages, geometry and collisions.
+- CI artifacts containing the FAP plus all bundled example profiles.
+- 0.9 installation and hardware-gate documentation.
+
+### Changed
+
+- Remote layout page count is determined by usability, not by a fixed remote-template page count.
+- Parsed IR transmission can reproduce device-specific initial frame bursts.
+- Home chooser remains metadata-only while supporting categories.
+- Remote Settings now expose Favourite and Folder.
+- Bluetooth activates only for BT remotes and restores the default Flipper profile on exit.
+
+### Validation
+
+- Package schema validation passes for living_tv, Sony, Optoma, LG, Daikin and Bluetooth Media.
+- Official release-channel uFBT build and lint passed in PR #11 run #201 before the final documentation/version pass.
+- Physical TX, AC state acceptance and BLE pair/reconnect remain tracked as TBD in `TEST_MATRIX.md`.
+
 ## [0.4.3] - 2026-10-02
 
 ### Fixed
