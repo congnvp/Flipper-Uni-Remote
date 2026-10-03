@@ -45,6 +45,7 @@ typedef struct {
     const UniActionEngine* action_engine;
     size_t selected_remote;
     const UniRemote* remote;
+    uint8_t remote_page;
 
     size_t focus_index;
     bool dpad_captured;
@@ -57,6 +58,7 @@ typedef struct {
 
     size_t menu_index;
     size_t layout_element;
+    uint8_t layout_page;
     bool layout_moving;
     bool layout_replace_mode;
 
