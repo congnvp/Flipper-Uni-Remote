@@ -4,6 +4,7 @@
 #include "icon_library.h"
 #include "layout_library.h"
 
+#include <furi.h>
 #include <gui/canvas.h>
 #include <stdio.h>
 #include <string.h>
@@ -228,7 +229,8 @@ static void draw_status(Canvas* canvas, const UniUiState* state, const UniElemen
     frame(canvas,x+1,y+1,w-2,h-2,false);
     text3(canvas,uni_transport_label(state->remote->transport),x+4,y+8,ColorBlack);
     text_center3(canvas,state->remote->short_name,x+w/2,y+8,ColorBlack);
-    const char* right = state->tx_flash ? "TX" : (state->tx_ok ? "--" : "ER");
+    const bool tx_flash = furi_get_tick() < state->tx_flash_until;
+    const char* right = tx_flash ? "TX" : (state->tx_ok ? "--" : "ER");
     if(state->dpad_captured && state->dpad_alt) right = "AL";
     if(state->page == UniUiLayoutEditor) right = state->layout_moving ? "MV" : "ED";
     text3(canvas,right,x+w-12,y+8,ColorBlack);
