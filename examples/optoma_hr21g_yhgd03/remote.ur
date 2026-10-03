@@ -5,6 +5,8 @@ Name: Optoma HR21G-YHGD03
 ShortName: OPT
 Transport: IR
 Order: 21
+Favourite: false
+Folder: PROJECTOR
 RepeatEnabled: true
 PageCount: 3
 IrBurst: 1
