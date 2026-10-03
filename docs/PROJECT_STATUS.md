@@ -80,9 +80,9 @@ Only physical evidence/release-gate work remains:
 ```text
 Current milestone: M6 / 0.10.0 software completion candidate
 Working: M1-M6 implementation and validation pipeline
-Broken: no known software-side blocker; latest final CI must be checked after 0.10 docs/version commits
+Broken: no known software-side blocker; 0.10 code/test head passed GitHub Actions run #255
 Not implemented: no known software feature from the agreed design remains
 Hardware test: TBD
-Next task: final 0.10 CI/artifact verification, then physical regression matrix
+Next task: physical regression matrix; keep v1.0.0 gated until required hardware rows pass
 Rollback baseline: v0.4.3 / 9eb46426953bfa993831caf0c5a6626584f7e155
 ```
