@@ -17,6 +17,7 @@ MAX_ELEMENTS = 18
 MAX_SIGNALS = 32
 MAX_ACTIONS = 16
 MAX_SEQUENCE_STEPS = 8
+MAX_SEQUENCE_DELAY_MS = 60000
 MAX_ACTION_ID_LEN = 23
 MAX_SIGNAL_NAME_LEN = 31
 FOCUSABLE = {"button", "hstep", "vstep", "dpad"}
@@ -112,7 +113,8 @@ def parse_actions(path: Path, signals: set[str]) -> set[str]:
         raise ProfileError(f"{path}: invalid ActionCount") from exc
     if not 0 <= count <= MAX_ACTIONS:
         raise ProfileError(f"{path}: ActionCount must be 0..{MAX_ACTIONS}")
-    ids: set[str] = set()
+
+    actions: dict[str, tuple[str, list[str]]] = {}
     for i in range(count):
         action_id = data.get(f"Action{i}Id", "")
         action_type = data.get(f"Action{i}Type", "")
@@ -122,9 +124,10 @@ def parse_actions(path: Path, signals: set[str]) -> set[str]:
             raise ProfileError(
                 f"{path}: Action{i}Id exceeds runtime limit {MAX_ACTION_ID_LEN}"
             )
-        if action_id in ids:
+        if action_id in actions:
             raise ProfileError(f"{path}: duplicate action id {action_id}")
-        ids.add(action_id)
+
+        refs: list[str] = []
         if action_type == "sequence":
             try:
                 steps = int(data.get(f"Action{i}StepCount", "0"))
@@ -135,17 +138,74 @@ def parse_actions(path: Path, signals: set[str]) -> set[str]:
                     f"{path}: Action{i}StepCount must be 0..{MAX_SEQUENCE_STEPS}"
                 )
             for step in range(steps):
-                signal = data.get(f"Action{i}Step{step}", "")
-                if signal not in signals:
+                ref = data.get(f"Action{i}Step{step}", "")
+                if not ref:
+                    raise ProfileError(f"{path}: Action{i}Step{step} is empty")
+                refs.append(ref)
+                try:
+                    delay = int(data.get(f"Action{i}Delay{step}", "0"))
+                except ValueError as exc:
+                    raise ProfileError(f"{path}: invalid Action{i}Delay{step}") from exc
+                if not 0 <= delay <= MAX_SEQUENCE_DELAY_MS:
                     raise ProfileError(
-                        f"{path}: Action{i}Step{step} references unknown signal {signal!r}"
+                        f"{path}: Action{i}Delay{step} must be 0..{MAX_SEQUENCE_DELAY_MS}"
                     )
         elif action_type == "signal":
             signal = data.get(f"Action{i}Signal", "")
             if signal not in signals:
-                raise ProfileError(f"{path}: Action{i}Signal references unknown signal {signal!r}")
+                raise ProfileError(
+                    f"{path}: Action{i}Signal references unknown signal {signal!r}"
+                )
         else:
             raise ProfileError(f"{path}: unsupported Action{i}Type {action_type!r}")
+
+        actions[action_id] = (action_type, refs)
+
+    ids = set(actions)
+    graph: dict[str, list[str]] = {action_id: [] for action_id in ids}
+    for action_id, (action_type, refs) in actions.items():
+        if action_type != "sequence":
+            continue
+        for step, ref in enumerate(refs):
+            if ref.startswith("sig:"):
+                signal = ref[4:]
+                if signal not in signals:
+                    raise ProfileError(
+                        f"{path}: action {action_id} step {step} references unknown signal {signal!r}"
+                    )
+            elif ref.startswith("act:"):
+                nested = ref[4:]
+                if nested not in ids:
+                    raise ProfileError(
+                        f"{path}: action {action_id} step {step} references unknown action {nested!r}"
+                    )
+                graph[action_id].append(nested)
+            elif ":" in ref:
+                raise ProfileError(
+                    f"{path}: action {action_id} step {step} has invalid binding {ref!r}"
+                )
+            elif ref not in signals:
+                raise ProfileError(
+                    f"{path}: action {action_id} step {step} references unknown signal {ref!r}"
+                )
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(action_id: str) -> None:
+        if action_id in visited:
+            return
+        if action_id in visiting:
+            raise ProfileError(f"{path}: recursive action cycle includes {action_id!r}")
+        visiting.add(action_id)
+        for nested in graph[action_id]:
+            visit(nested)
+        visiting.remove(action_id)
+        visited.add(action_id)
+
+    for action_id in ids:
+        visit(action_id)
+
     return ids
 
 
