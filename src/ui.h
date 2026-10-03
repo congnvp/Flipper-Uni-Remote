@@ -7,6 +7,7 @@
 #include <gui/canvas.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define UNI_LAST_SIGNAL_MAX UNI_BINDING_MAX
 
@@ -53,7 +54,7 @@ typedef struct {
     bool dpad_alt;
     UniKey dpad_hold_key;
 
-    bool tx_flash;
+    uint32_t tx_flash_until;
     bool tx_ok;
     char last_signal[UNI_LAST_SIGNAL_MAX];
 
