@@ -2,6 +2,8 @@
 
 #include <flipper_format/flipper_format.h>
 #include <lib/infrared/signal/infrared_signal.h>
+#include <infrared/worker/infrared_transmit.h>
+#include <furi.h>
 #include <stdlib.h>
 
 struct UniIrTransport {
@@ -33,7 +35,8 @@ bool uni_ir_transport_send(
     UniIrTransport* transport,
     const char* signal_file,
     const char* signal_name,
-    bool repeat) {
+    bool repeat,
+    uint8_t burst_count) {
     if(!transport || !signal_file || !signal_name || signal_name[0] == '\0') return false;
 
     FlipperFormat* ff = flipper_format_file_alloc(transport->storage);
@@ -47,14 +50,20 @@ bool uni_ir_transport_send(
             break;
         }
 
-        if(repeat && !infrared_signal_is_raw(transport->signal)) {
-            InfraredMessage message = *infrared_signal_get_message(transport->signal);
-            message.repeat = true;
-            infrared_signal_set_message(transport->signal, &message);
-        }
+        if(burst_count == 0) burst_count = 1;
 
-        infrared_signal_transmit(transport->signal);
-        ok = true;
+        if(!infrared_signal_is_raw(transport->signal)) {
+            InfraredMessage message = *infrared_signal_get_message(transport->signal);
+            message.repeat = repeat;
+            infrared_send(&message, burst_count);
+            ok = true;
+        } else {
+            for(uint8_t i = 0; i < burst_count; i++) {
+                infrared_signal_transmit(transport->signal);
+                if(i + 1 < burst_count) furi_delay_ms(20);
+            }
+            ok = true;
+        }
     } while(false);
 
     flipper_format_file_close(ff);
