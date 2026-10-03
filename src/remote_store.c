@@ -1109,6 +1109,76 @@ static void remove_overlaps(
     }
 }
 
+bool uni_remote_store_set_label(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    const char* label) {
+    if(!label || strlen(label) >= UNI_LABEL_MAX) return false;
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || element_index >= remote->element_count) return false;
+
+    UniElement* element = &remote->elements[element_index];
+    char old_label[UNI_LABEL_MAX];
+    snprintf(old_label, sizeof(old_label), "%s", element->label);
+    snprintf(element->label, sizeof(element->label), "%s", label);
+
+    if(!uni_remote_store_save(store, remote_index)) {
+        snprintf(element->label, sizeof(element->label), "%s", old_label);
+        return false;
+    }
+    return true;
+}
+
+bool uni_remote_store_set_element_page(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    uint8_t page_index) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || element_index >= remote->element_count) return false;
+    if(page_index > remote->page_count || page_index >= UNI_MAX_PAGES) return false;
+
+    UniElement* element = &remote->elements[element_index];
+    const UniElement old = *element;
+    const uint8_t old_page_count = remote->page_count;
+
+    if(page_index == remote->page_count) {
+        remote->page_count++;
+    }
+    element->page = page_index;
+
+    if(!element_free(remote, element_index, element, element->x, element->y)) {
+        uint8_t nx = 0;
+        uint8_t ny = 0;
+        if(!find_nearest_free_position(
+               remote,
+               element_index,
+               element,
+               element->x,
+               element->y,
+               &nx,
+               &ny)) {
+            *element = old;
+            remote->page_count = old_page_count;
+            return false;
+        }
+        element->x = nx;
+        element->y = ny;
+    }
+
+    if(!uni_remote_store_save(store, remote_index)) {
+        *element = old;
+        remote->page_count = old_page_count;
+        return false;
+    }
+    return true;
+}
+
 bool uni_remote_store_move_element(
     UniRemoteStore* store,
     size_t remote_index,
