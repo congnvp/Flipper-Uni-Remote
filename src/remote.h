@@ -83,6 +83,7 @@ typedef struct {
     uint32_t order;
     bool repeat_enabled;
     uint8_t page_count;
+    uint8_t ir_burst_count;
 
     char config_path[UNI_PATH_MAX];
     char signal_file[64];
