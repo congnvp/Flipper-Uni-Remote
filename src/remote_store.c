@@ -841,20 +841,44 @@ size_t uni_remote_store_category_position(
     return 0;
 }
 
+static bool metadata_details_were_loaded(
+    const UniRemoteStore* store,
+    size_t remote_index) {
+    const UniRemote* remote = uni_remote_store_get(store, remote_index);
+    return remote && remote->elements_loaded && remote->elements;
+}
+
+static bool finish_metadata_save(
+    UniRemoteStore* store,
+    size_t remote_index,
+    bool was_loaded) {
+    const bool ok = uni_remote_store_save(store, remote_index);
+    if(!was_loaded) uni_remote_store_unload_details(store, remote_index);
+    return ok;
+}
+
 bool uni_remote_store_set_repeat(UniRemoteStore* store, size_t remote_index, bool enabled) {
+    const bool was_loaded = metadata_details_were_loaded(store, remote_index);
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
-    if(!remote) return false;
+    if(!remote) {
+        if(!was_loaded) uni_remote_store_unload_details(store, remote_index);
+        return false;
+    }
     remote->repeat_enabled = enabled;
-    return uni_remote_store_save(store, remote_index);
+    return finish_metadata_save(store, remote_index, was_loaded);
 }
 
 bool uni_remote_store_set_favorite(UniRemoteStore* store, size_t remote_index, bool enabled) {
+    const bool was_loaded = metadata_details_were_loaded(store, remote_index);
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
-    if(!remote) return false;
+    if(!remote) {
+        if(!was_loaded) uni_remote_store_unload_details(store, remote_index);
+        return false;
+    }
     remote->favorite = enabled;
-    return uni_remote_store_save(store, remote_index);
+    return finish_metadata_save(store, remote_index, was_loaded);
 }
 
 bool uni_remote_store_set_folder(
@@ -863,11 +887,16 @@ bool uni_remote_store_set_folder(
     const char* folder) {
     if(!folder || strchr(folder, '/') || strchr(folder, '\n') || strchr(folder, '\r')) return false;
     if(strlen(folder) >= UNI_FOLDER_MAX) return false;
+
+    const bool was_loaded = metadata_details_were_loaded(store, remote_index);
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
-    if(!remote) return false;
+    if(!remote) {
+        if(!was_loaded) uni_remote_store_unload_details(store, remote_index);
+        return false;
+    }
     snprintf(remote->folder, sizeof(remote->folder), "%s", folder);
-    return uni_remote_store_save(store, remote_index);
+    return finish_metadata_save(store, remote_index, was_loaded);
 }
 
 static bool elements_overlap_at(
