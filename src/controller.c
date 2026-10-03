@@ -49,20 +49,14 @@ static void set_focus(
     bool remember_previous) {
     if(!remote || index >= remote->element_count) return;
 
-    if(remember_previous && remote->elements[index].type == UniElementDpad &&
-       index != controller->focus_index) {
-        controller->focus_before_capture = controller->focus_index;
-        controller->focus_before_capture_valid = true;
-    }
-
+    UNUSED(remember_previous);
     controller->focus_index = index;
     controller->page = remote->elements[index].page;
-    controller->dpad_captured = remote->elements[index].type == UniElementDpad;
-    if(!controller->dpad_captured) {
-        controller->dpad_alt = false;
-        controller->dpad_hold_key = UniKeyUnknown;
-        controller->ok_pending = false;
-    }
+    controller->dpad_captured = false;
+    controller->dpad_alt = false;
+    controller->dpad_hold_key = UniKeyUnknown;
+    controller->ok_pending = false;
+    controller->focus_before_capture_valid = false;
 }
 
 bool uni_controller_move_focus(
@@ -194,11 +188,6 @@ static void release_dpad_capture(UniController* controller, const UniRemote* rem
     controller->dpad_hold_key = UniKeyUnknown;
     if(!keep_alt) controller->dpad_alt = false;
 
-    if(controller->focus_before_capture_valid &&
-       controller->focus_before_capture < remote->element_count &&
-       uni_element_focusable(&remote->elements[controller->focus_before_capture])) {
-        controller->focus_index = controller->focus_before_capture;
-    }
     controller->focus_before_capture_valid = false;
 }
 
@@ -217,7 +206,7 @@ void uni_controller_reset(UniController* controller, const UniRemote* remote) {
     }
     if(remote && first < remote->element_count) {
         controller->focus_index = first;
-        controller->dpad_captured = remote->elements[first].type == UniElementDpad;
+        controller->dpad_captured = false;
     }
 }
 
@@ -413,7 +402,16 @@ void uni_controller_handle(
     }
 
     if(element->type == UniElementDpad && !controller->dpad_captured) {
-        if(input_type == InputTypePress) uni_controller_move_focus(controller, remote, key);
+        if(key == UniKeyOk && input_type == InputTypeShort) {
+            controller->dpad_captured = true;
+            controller->dpad_alt = false;
+            controller->dpad_hold_key = UniKeyUnknown;
+            controller->ok_pending = false;
+        } else if(input_type == InputTypePress &&
+                  (key == UniKeyUp || key == UniKeyDown ||
+                   key == UniKeyLeft || key == UniKeyRight)) {
+            uni_controller_move_focus(controller, remote, key);
+        }
     }
 }
 
