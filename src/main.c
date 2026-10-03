@@ -526,6 +526,7 @@ static void cycle_remote_folder(UniApp* app, int direction) {
         uni_remote_store_folder_name(&app->store, current - 1, folder, sizeof(folder));
     uni_remote_store_set_folder(&app->store, app->ui.selected_remote, folder);
     refresh_remote_pointer(app);
+    sync_home_category(app);
 }
 
 static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey key) {
@@ -559,6 +560,7 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
             app->ui.selected_remote,
             !remote->favorite);
         refresh_remote_pointer(app);
+        sync_home_category(app);
         break;
     case 2:
         if(key == UniKeyLeft) cycle_remote_folder(app, -1);
