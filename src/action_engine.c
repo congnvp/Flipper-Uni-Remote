@@ -194,7 +194,12 @@ bool uni_action_engine_execute(
             if(repeat) return false;
             bool ok = true;
             for(size_t i = 0; i < action->step_count; i++) {
-                if(!uni_ir_transport_send(engine->ir, remote->signal_path, action->steps[i], false)) {
+                if(!uni_ir_transport_send(
+                       engine->ir,
+                       remote->signal_path,
+                       action->steps[i],
+                       false,
+                       remote->ir_burst)) {
                     ok = false;
                     break;
                 }
@@ -206,5 +211,10 @@ bool uni_action_engine_execute(
         }
     }
 
-    return uni_ir_transport_send(engine->ir, remote->signal_path, signal_name, repeat);
+    return uni_ir_transport_send(
+        engine->ir,
+        remote->signal_path,
+        signal_name,
+        repeat,
+        remote->ir_burst);
 }
