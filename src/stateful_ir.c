@@ -508,3 +508,9 @@ bool uni_stateful_ir_execute(
     if(!send_profile(remote,&s)) return false;
     return save_state(storage,remote,&s);
 }
+
+bool uni_stateful_ir_reset_state(Storage* storage, const UniRemote* remote) {
+    if(!storage || !remote || !remote->state_path[0]) return false;
+    const FS_Error status = storage_common_remove(storage, remote->state_path);
+    return status == FSE_OK || status == FSE_NOT_EXIST;
+}
