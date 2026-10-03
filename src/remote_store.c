@@ -9,6 +9,7 @@
 #define UNI_REMOTE_FILETYPE "Flipper Uni Remote"
 #define UNI_REMOTE_VERSION 1U
 #define UNI_REMOTES_DIR APP_DATA_PATH("remotes")
+#define UNI_SEED_MARKER APP_DATA_PATH("seed_v2.done")
 #define UNI_DEFAULT_DIR APP_DATA_PATH("remotes/demo_tv")
 #define UNI_DEFAULT_REMOTE APP_DATA_PATH("remotes/demo_tv/remote.ur")
 #define UNI_DEFAULT_SIGNALS APP_DATA_PATH("remotes/demo_tv/signals.ir")
@@ -850,9 +851,23 @@ bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
     store->storage = storage;
 
     storage_common_mkdir(storage, UNI_REMOTES_DIR);
-    /* Built-in demo packages are create-only; existing user packages are never overwritten. */
-    ensure_default_package(storage);
+
+    /*
+     * Seed examples once per data schema. This makes upgrades discover the new
+     * examples without resurrecting a built-in remote that the user deleted later.
+     */
+    if(!storage_file_exists(storage, UNI_SEED_MARKER)) {
+        ensure_default_package(storage);
+        static const char marker[] = "v2\n";
+        write_text_file(storage, UNI_SEED_MARKER, marker);
+    }
+
     scan_remotes(store);
+    if(store->count == 0) {
+        /* Keep a recoverable first-run path even if the marker was copied alone. */
+        ensure_default_package(storage);
+        scan_remotes(store);
+    }
     return store->count > 0;
 }
 
