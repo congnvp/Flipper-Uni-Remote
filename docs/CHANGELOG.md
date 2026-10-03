@@ -33,7 +33,7 @@ Software-complete release candidate for the current v1 scope. Physical target va
 ### Validation
 
 - Package schema validation passes for living_tv, Sony, Optoma, LG, Daikin and Bluetooth Media.
-- Official release-channel uFBT build and lint passed in PR #11 run #201 before the final documentation/version pass.
+- Official release-channel uFBT build and lint passed in PR #11 run #209 for the complete 0.9.0 candidate.
 - Physical TX, AC state acceptance and BLE pair/reconnect remain tracked as TBD in `TEST_MATRIX.md`.
 
 ## [0.4.3] - 2026-10-02
