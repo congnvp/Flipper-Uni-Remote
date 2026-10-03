@@ -178,7 +178,9 @@ Double OK toggles ALT. Short Back releases D-pad capture. Long Back is a system 
 
 ## On-device editor
 
-The Layout Editor rewrites `remote.ur` from the current model. Move/Add/Replace/Remove/Icon remain transport-neutral.
+The Layout Editor rewrites `remote.ur` from the current model. Move/Add/Replace/Remove/Icon/Label/Page remain transport-neutral. Page editing can append a new page up to the 16-page limit, and empty trailing pages are trimmed automatically.
+
+Folder names can also be entered on-device from Remote Settings.
 
 Map is transport-aware:
 
@@ -187,6 +189,8 @@ Map is transport-aware:
 - BT: Bluetooth Action / Clear.
 
 This prevents the on-device editor from creating a binding that the selected transport cannot execute.
+
+Ordinary IR packages also expose `REMOTE -> MACROS`. Sequence actions can be created and edited on-device, including nested `act:` steps. Runtime and CI reject recursive macro graphs.
 
 ## Validation
 
