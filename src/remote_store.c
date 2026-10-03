@@ -294,6 +294,7 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
     snprintf(remote->id, sizeof(remote->id), "%.23s", folder);
     snprintf(remote->signal_file, sizeof(remote->signal_file), "signals.ir");
     snprintf(remote->action_file, sizeof(remote->action_file), "actions.ur");
+    snprintf(remote->state_file, sizeof(remote->state_file), "state.urs");
 
     do {
         if(!flipper_format_file_open_existing(ff, config_path)) break;
@@ -326,6 +327,20 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
             remote->bluetooth_profile,
             sizeof(remote->bluetooth_profile),
             false);
+        ff_read_string(
+            ff,
+            "StateAdapter",
+            remote->state_adapter,
+            sizeof(remote->state_adapter),
+            false);
+        ff_read_string(
+            ff,
+            "StateFile",
+            remote->state_file,
+            sizeof(remote->state_file),
+            false);
+
+        if(remote->transport == UniTransportStatefulIr && !remote->state_adapter[0]) break;
 
         ff_read_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold], UNI_BINDING_MAX, false);
         ff_read_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold], UNI_BINDING_MAX, false);
@@ -357,6 +372,12 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
             UNI_REMOTES_DIR "/%s/%s",
             folder,
             action_file_copy);
+        snprintf(
+            remote->state_path,
+            sizeof(remote->state_path),
+            UNI_REMOTES_DIR "/%s/%s",
+            folder,
+            remote->state_file);
         ok = true;
     } while(false);
 
@@ -488,6 +509,8 @@ bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
         if(!write_string(ff, "SignalFile", remote->signal_file)) break;
         if(!write_string(ff, "ActionFile", remote->action_file)) break;
         if(!write_string(ff, "BluetoothProfile", remote->bluetooth_profile)) break;
+        if(!write_string(ff, "StateAdapter", remote->state_adapter)) break;
+        if(!write_string(ff, "StateFile", remote->state_file)) break;
 
         if(!write_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold])) break;
         if(!write_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold])) break;
