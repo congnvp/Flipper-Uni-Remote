@@ -137,6 +137,7 @@ static bool load_actions(Storage* storage, const char* path, UniActionCatalog* c
                         (unsigned long)i,
                         (unsigned long)s);
                     read_u32(ff, key, &action->delays_ms[s], false);
+                    if(action->delays_ms[s] > UNI_MAX_SEQUENCE_DELAY_MS) goto done;
                 }
             } else {
                 goto done;
