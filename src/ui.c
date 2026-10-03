@@ -336,9 +336,24 @@ static void draw_element(Canvas* canvas,const UniUiState* state,size_t index) {
     }
 }
 
+static void draw_page_indicator(Canvas* canvas,const UniUiState* state) {
+    if(!state->remote || state->remote->page_count <= 1) return;
+    const uint8_t count = state->remote->page_count;
+    const int16_t total = (int16_t)count * 3 - 1;
+    const int16_t start = (64 - total) / 2;
+    for(uint8_t i = 0; i < count; i++) {
+        const int16_t x = start + (int16_t)i * 3;
+        if(i == state->remote_page) hline(canvas, x, 126, 2, ColorBlack);
+        else pset(canvas, x, 126, ColorBlack);
+    }
+}
+
 static void draw_remote(Canvas* canvas,const UniUiState* state) {
     if(!state->remote) return;
-    for(size_t i=0;i<state->remote->element_count;i++) draw_element(canvas,state,i);
+    for(size_t i=0;i<state->remote->element_count;i++) {
+        if(state->remote->elements[i].page == state->remote_page) draw_element(canvas,state,i);
+    }
+    draw_page_indicator(canvas,state);
 }
 
 static void draw_menu_header(Canvas* canvas,const char* title) {
