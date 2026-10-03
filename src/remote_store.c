@@ -1171,6 +1171,13 @@ bool uni_remote_store_set_element_page(
         element->y = ny;
     }
 
+    uint8_t required_pages = 1;
+    for(size_t i = 0; i < remote->element_count; i++) {
+        const uint8_t needed = (uint8_t)(remote->elements[i].page + 1U);
+        if(needed > required_pages) required_pages = needed;
+    }
+    remote->page_count = required_pages;
+
     if(!uni_remote_store_save(store, remote_index)) {
         *element = old;
         remote->page_count = old_page_count;
