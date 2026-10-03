@@ -34,12 +34,12 @@ UniKey uni_map_physical_key(InputKey key) {
     }
 }
 
-static size_t first_focusable(const UniRemote* remote) {
+static size_t first_focusable(const UniRemote* remote, uint8_t page) {
     if(!remote) return 0;
     for(size_t i = 0; i < remote->element_count; i++) {
-        if(uni_element_focusable(&remote->elements[i])) return i;
+        if(remote->elements[i].page == page && uni_element_focusable(&remote->elements[i])) return i;
     }
-    return 0;
+    return remote->element_count;
 }
 
 static void set_focus(
@@ -48,6 +48,7 @@ static void set_focus(
     size_t index,
     bool remember_previous) {
     if(!remote || index >= remote->element_count) return;
+    if(remote->elements[index].page != controller->page_index) return;
 
     if(remember_previous && remote->elements[index].type == UniElementDpad &&
        index != controller->focus_index) {
@@ -88,6 +89,7 @@ bool uni_controller_move_focus(
     for(size_t i = 0; i < remote->element_count; i++) {
         if(i == controller->focus_index) continue;
         const UniElement* candidate = &remote->elements[i];
+        if(candidate->page != controller->page_index) continue;
         if(!uni_element_focusable(candidate)) continue;
 
         const int score = uni_element_direction_score(current, candidate, dx, dy);
@@ -100,6 +102,36 @@ bool uni_controller_move_focus(
     if(best_index == controller->focus_index) return false;
     set_focus(controller, remote, best_index, true);
     return true;
+}
+
+static bool change_page(UniController* controller, const UniRemote* remote, int8_t delta) {
+    if(!controller || !remote || remote->page_count <= 1 || delta == 0) return false;
+
+    const uint8_t count = remote->page_count;
+    for(uint8_t attempt = 0; attempt < count; attempt++) {
+        int next = (int)controller->page_index + delta;
+        if(next < 0) next += count;
+        if(next >= count) next -= count;
+        controller->page_index = (uint8_t)next;
+
+        const size_t first = first_focusable(remote, controller->page_index);
+        if(first < remote->element_count) {
+            controller->focus_before_capture_valid = false;
+            set_focus(controller, remote, first, false);
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool move_focus_or_page(
+    UniController* controller,
+    const UniRemote* remote,
+    UniKey direction) {
+    if(uni_controller_move_focus(controller, remote, direction)) return true;
+    if(direction == UniKeyLeft) return change_page(controller, remote, -1);
+    if(direction == UniKeyRight) return change_page(controller, remote, 1);
+    return false;
 }
 
 static void emit(UniController* controller, const char* binding, bool repeat) {
@@ -178,7 +210,17 @@ void uni_controller_reset(UniController* controller, const UniRemote* remote) {
     controller->dpad_hold_key = UniKeyUnknown;
     controller->pending_nav_key = UniKeyUnknown;
 
-    const size_t first = first_focusable(remote);
+    controller->page_index = 0;
+    size_t first = first_focusable(remote, controller->page_index);
+    if(remote && first >= remote->element_count) {
+        for(uint8_t page = 1; page < remote->page_count; page++) {
+            first = first_focusable(remote, page);
+            if(first < remote->element_count) {
+                controller->page_index = page;
+                break;
+            }
+        }
+    }
     if(remote && first < remote->element_count) {
         controller->focus_index = first;
         controller->dpad_captured = remote->elements[first].type == UniElementDpad;
@@ -202,7 +244,7 @@ static void handle_hard_hold_candidate(
               controller->pending_nav_key == key) {
         controller->nav_pending = false;
         controller->pending_nav_key = UniKeyUnknown;
-        uni_controller_move_focus(controller, remote, key);
+        move_focus_or_page(controller, remote, key);
     } else if(input_type == InputTypeLong) {
         controller->nav_pending = false;
         controller->pending_nav_key = UniKeyUnknown;
@@ -315,7 +357,7 @@ void uni_controller_handle(
     }
 
     if(controller->focus_index >= remote->element_count) {
-        const size_t first = first_focusable(remote);
+        const size_t first = first_focusable(remote, controller->page_index);
         if(first < remote->element_count) set_focus(controller, remote, first, false);
     }
     if(controller->focus_index >= remote->element_count) return;
@@ -345,7 +387,7 @@ void uni_controller_handle(
             if(element->hold[0]) emit(controller, element->hold, false);
             else emit(controller, remote->hard_bindings[UniHardOkHold], false);
         } else if(input_type == InputTypePress) {
-            uni_controller_move_focus(controller, remote, key);
+            move_focus_or_page(controller, remote, key);
         }
         return;
     }
@@ -368,14 +410,14 @@ void uni_controller_handle(
         else if((input_type == InputTypePress || repeat) && key == UniKeyDown)
             emit(controller, element->down, repeat);
         else if(input_type == InputTypePress && (key == UniKeyLeft || key == UniKeyRight))
-            uni_controller_move_focus(controller, remote, key);
+            move_focus_or_page(controller, remote, key);
         else if(key == UniKeyOk && input_type == InputTypeLong)
             emit(controller, remote->hard_bindings[UniHardOkHold], false);
         return;
     }
 
     if(element->type == UniElementDpad && !controller->dpad_captured) {
-        if(input_type == InputTypePress) uni_controller_move_focus(controller, remote, key);
+        if(input_type == InputTypePress) move_focus_or_page(controller, remote, key);
     }
 }
 
