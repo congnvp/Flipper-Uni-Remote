@@ -1,6 +1,7 @@
 #include "stateful_ir.h"
 
 #include <furi.h>
+#include <furi_hal_rtc.h>
 #include <infrared/worker/infrared_transmit.h>
 #include <storage/storage.h>
 #include <stdio.h>
@@ -65,7 +66,7 @@ static void default_state(const UniRemote* remote, UniAcState* s) {
         s->fan = 6;     /* Auto */
         s->swing_v = 1; /* physical position 2 */
     } else if(strcmp(remote->state_profile, "CARRIER_WC_UA4NE") == 0) {
-        s->mode = UniAcModeAuto;
+        s->mode = UniAcModeCool;
         s->temp_x2 = 48;
     }
 }
@@ -137,7 +138,7 @@ static uint8_t wrap_u8(int value, uint8_t count) {
 #define LG_ENERGY_ON 0x8810045UL
 #define LG_ENERGY_OFF 0x8810056UL
 #define LG_JET_ON 0x8810089UL
-#define LG_JET_OFF_STATE 0U
+#define LG_COMMAND_GAP_MS 120U
 
 static const uint8_t lg_fan_native[6] = {0x5,0x0,0x9,0x2,0xA,0x4};
 static const uint32_t lg_swing_v[8] = {
@@ -207,14 +208,32 @@ static void lg_send_state(const UniAcState* s, bool power_on) {
     lg_send_code(lg_raw_from_command(lg_state_command(s, power_on)));
 }
 
+static void lg_send_aux_state(const UniAcState* s) {
+    furi_delay_ms(LG_COMMAND_GAP_MS);
+    lg_send_code(lg_swing_v[s->swing_v < 8 ? s->swing_v : 0]);
+    furi_delay_ms(LG_COMMAND_GAP_MS);
+    lg_send_code(lg_swing_h[s->swing_h < 9 ? s->swing_h : 0]);
+    furi_delay_ms(LG_COMMAND_GAP_MS);
+    lg_send_code(s->eco ? LG_ENERGY_ON : LG_ENERGY_OFF);
+    if(s->turbo) {
+        furi_delay_ms(LG_COMMAND_GAP_MS);
+        lg_send_code(LG_JET_ON);
+    }
+}
+
+static void lg_power_on(UniAcState* s) {
+    s->power = true;
+    lg_send_state(s, true);
+    lg_send_aux_state(s);
+}
+
 static bool lg_send_action(UniAcState* s, const char* action) {
     if(strcmp(action, "power") == 0) {
         if(s->power) {
             lg_send_code(LG_POWER_OFF);
             s->power = false;
         } else {
-            s->power = true;
-            lg_send_state(s, true);
+            lg_power_on(s);
         }
         return true;
     }
@@ -234,10 +253,13 @@ static bool lg_send_action(UniAcState* s, const char* action) {
         return true;
     }
     if(strcmp(action, "turbo") == 0) {
-        s->turbo = !s->turbo;
-        if(s->power) {
-            if(s->turbo) lg_send_code(LG_JET_ON);
-            else lg_send_state(s, false);
+        if(!s->turbo) {
+            s->turbo = true;
+            if(!s->power) lg_power_on(s);
+            else lg_send_code(LG_JET_ON);
+        } else {
+            s->turbo = false;
+            if(s->power) lg_send_state(s, false);
         }
         return true;
     }
@@ -270,11 +292,21 @@ static uint8_t daikin_mode(const UniAcState* s) {
     return 0x3U;
 }
 
+static uint16_t daikin_current_minutes(void) {
+    DateTime dt;
+    furi_hal_rtc_get_datetime(&dt);
+    return (uint16_t)(dt.hour * 60U + dt.minute);
+}
+
 static void daikin_build(const UniAcState* s, uint8_t out[DAIKIN_LEN]) {
     memset(out, 0, DAIKIN_LEN);
     out[0]=0x11; out[1]=0xDA; out[2]=0x27; out[4]=0xC5;
     out[8]=0x11; out[9]=0xDA; out[10]=0x27; out[12]=0x42;
     out[16]=0x11; out[17]=0xDA; out[18]=0x27; out[21]=0x08; out[31]=0xC0;
+
+    const uint16_t now = daikin_current_minutes();
+    out[13] = (uint8_t)(now & 0xFFU);
+    out[14] = (uint8_t)((now >> 8) & 0x07U);
 
     if(s->power) out[21] |= 0x01U;
     out[21] |= (uint8_t)(daikin_mode(s) << 4);
@@ -360,7 +392,8 @@ static void pana_build(const UniAcState* s,uint8_t out[27]){
     out[13]=pana_mode(s); out[14]=s->temp_x2;
     out[16]=(uint8_t)((pana_fan(s->fan)<<4)|pana_swing(s->swing_v));
     out[21]=0;
-    if(s->turbo) out[21]|=0x01U;
+    if(s->fan==0) out[21]|=0x20U;
+    else if(s->turbo) out[21]|=0x01U;
     out[25]=0;
     if(s->eco) out[25]|=0x10U;
     if(s->nanoe) out[25]|=0x06U;
@@ -417,31 +450,115 @@ static void carrier_swing(uint8_t val,uint8_t frames){uint8_t d[7]={0xF2,0x0D,0x
 
 /* ---------------- Generic state mutation ---------------- */
 
-static bool profile_supports_heat(const UniRemote* r){return strcmp(r->state_profile,"LG_AKB75215401")==0;}
-static uint8_t mode_count(const UniRemote* r){return profile_supports_heat(r)?5U:4U;}
+static bool profile_is(const UniRemote* r, const char* id) {
+    return strcmp(r->state_profile, id) == 0;
+}
+
+static UniAcMode cycle_mode(const UniRemote* r, UniAcMode mode, int delta) {
+    static const UniAcMode lg_modes[] = {
+        UniAcModeCool, UniAcModeDry, UniAcModeFan, UniAcModeAuto, UniAcModeHeat};
+    static const UniAcMode daikin_modes[] = {
+        UniAcModeCool, UniAcModeDry, UniAcModeFan};
+    static const UniAcMode panasonic_modes[] = {
+        UniAcModeAuto, UniAcModeCool, UniAcModeDry};
+    static const UniAcMode carrier_modes[] = {
+        UniAcModeAuto, UniAcModeCool, UniAcModeDry, UniAcModeFan};
+
+    const UniAcMode* modes = carrier_modes;
+    uint8_t count = sizeof(carrier_modes) / sizeof(carrier_modes[0]);
+    if(profile_is(r, "LG_AKB75215401")) {
+        modes = lg_modes;
+        count = sizeof(lg_modes) / sizeof(lg_modes[0]);
+    } else if(profile_is(r, "DAIKIN_ARC433A73")) {
+        modes = daikin_modes;
+        count = sizeof(daikin_modes) / sizeof(daikin_modes[0]);
+    } else if(profile_is(r, "PANASONIC_RKR")) {
+        modes = panasonic_modes;
+        count = sizeof(panasonic_modes) / sizeof(panasonic_modes[0]);
+    }
+
+    uint8_t index = 0;
+    for(uint8_t i = 0; i < count; i++) {
+        if(modes[i] == mode) {
+            index = i;
+            break;
+        }
+    }
+    index = wrap_u8((int)index + delta, count);
+    return modes[index];
+}
+
+static bool mode_allows_temp(const UniRemote* r, UniAcMode mode) {
+    if(profile_is(r, "LG_AKB75215401"))
+        return mode == UniAcModeCool || mode == UniAcModeHeat;
+    if(profile_is(r, "DAIKIN_ARC433A73"))
+        return mode == UniAcModeCool;
+    return true;
+}
+
+static bool mode_allows_fan(const UniRemote* r, UniAcMode mode) {
+    if(profile_is(r, "LG_AKB75215401"))
+        return mode == UniAcModeCool || mode == UniAcModeHeat || mode == UniAcModeFan;
+    if(profile_is(r, "DAIKIN_ARC433A73"))
+        return mode == UniAcModeCool || mode == UniAcModeFan;
+    if(profile_is(r, "CARRIER_WC_UA4NE"))
+        return mode != UniAcModeDry;
+    return true;
+}
 
 static bool mutate_common(const UniRemote* r, UniAcState* s, const char* action) {
-    if(strcmp(action,"temp+")==0){s->temp_x2=(uint8_t)(s->temp_x2+2);return true;}
-    if(strcmp(action,"temp-")==0){s->temp_x2=(uint8_t)(s->temp_x2-2);return true;}
-    if(strcmp(action,"mode+")==0){s->mode=(UniAcMode)wrap_u8((int)s->mode+1,mode_count(r));return true;}
-    if(strcmp(action,"mode-")==0){s->mode=(UniAcMode)wrap_u8((int)s->mode-1,mode_count(r));return true;}
-    if(strcmp(action,"fan+")==0){s->fan=wrap_u8((int)s->fan+1,6);return true;}
-    if(strcmp(action,"fan-")==0){s->fan=wrap_u8((int)s->fan-1,6);return true;}
+    if(strcmp(action,"temp+")==0 || strcmp(action,"temp-")==0) {
+        if(!mode_allows_temp(r, s->mode)) return true;
+        const int step = profile_is(r, "PANASONIC_RKR") ? 1 : 2;
+        s->temp_x2 = (uint8_t)((int)s->temp_x2 +
+            (strcmp(action,"temp+")==0 ? step : -step));
+        if(profile_is(r, "LG_AKB75215401")) s->turbo = false;
+        return true;
+    }
+    if(strcmp(action,"mode+")==0 || strcmp(action,"mode-")==0) {
+        s->mode = cycle_mode(r, s->mode, strcmp(action,"mode+")==0 ? 1 : -1);
+        if(profile_is(r, "LG_AKB75215401")) s->turbo = false;
+        if(profile_is(r, "CARRIER_WC_UA4NE")) {
+            s->turbo = false;
+            s->eco = false;
+        }
+        return true;
+    }
+    if(strcmp(action,"fan+")==0 || strcmp(action,"fan-")==0) {
+        if(!mode_allows_fan(r, s->mode)) return true;
+        const uint8_t count = profile_is(r, "PANASONIC_RKR") ? 7U : 6U;
+        s->fan = wrap_u8(
+            (int)s->fan + (strcmp(action,"fan+")==0 ? 1 : -1),
+            count);
+        if(profile_is(r, "LG_AKB75215401")) s->turbo = false;
+        if(profile_is(r, "PANASONIC_RKR") && s->fan == 0) s->turbo = false;
+        return true;
+    }
     if(strcmp(action,"swing")==0){s->swing_v=s->swing_v?0:1;return true;}
     if(strcmp(action,"swing+")==0){
-        const uint8_t count =
-            strcmp(r->state_profile,"PANASONIC_RKR")==0 ? 6U : 2U;
+        const uint8_t count = profile_is(r, "PANASONIC_RKR") ? 6U : 2U;
         s->swing_v=wrap_u8((int)s->swing_v+1,count);
         return true;
     }
     if(strcmp(action,"eco")==0){
-        if(strcmp(r->state_profile,"DAIKIN_ARC433A73")==0) return false;
-        s->eco=!s->eco;if(s->eco)s->turbo=false;return true;
+        if(profile_is(r, "DAIKIN_ARC433A73")) return false;
+        if(profile_is(r, "CARRIER_WC_UA4NE") && !s->power) return true;
+        s->eco=!s->eco;
+        if(s->eco)s->turbo=false;
+        return true;
     }
-    if(strcmp(action,"turbo")==0){s->turbo=!s->turbo;if(s->turbo)s->eco=false;return true;}
+    if(strcmp(action,"turbo")==0){
+        if(profile_is(r, "DAIKIN_ARC433A73") && !s->power) return true;
+        if(profile_is(r, "CARRIER_WC_UA4NE") && !s->power) return true;
+        if(profile_is(r, "PANASONIC_RKR") && s->fan == 0) s->fan = 6;
+        s->turbo=!s->turbo;
+        if(s->turbo)s->eco=false;
+        return true;
+    }
     if(strcmp(action,"nanoe")==0){
-        if(strcmp(r->state_profile,"PANASONIC_RKR")!=0) return false;
-        s->nanoe=!s->nanoe;return true;
+        if(!profile_is(r, "PANASONIC_RKR")) return false;
+        s->nanoe=!s->nanoe;
+        return true;
     }
     return false;
 }
@@ -490,22 +607,39 @@ bool uni_stateful_ir_execute(
     const char* action=binding+3;
 
     bool handled=false;
-    if(strcmp(remote->state_profile,"LG_AKB75215401")==0) {
+    if(profile_is(remote,"LG_AKB75215401")) {
         handled=lg_send_action(&s,action);
-        if(handled){normalize(remote,&s);return save_state(storage,remote,&s);}
+        if(handled){
+            normalize(remote,&s);
+            return save_state(storage,remote,&s);
+        }
     }
 
-    if(strcmp(remote->state_profile,"CARRIER_WC_UA4NE")==0) {
+    if(profile_is(remote,"CARRIER_WC_UA4NE")) {
         if(strcmp(action,"fix")==0){carrier_swing(0,1);return true;}
         if(strcmp(action,"swing")==0){carrier_swing(4,2);return true;}
     }
 
-    if(strcmp(action,"power")==0){s.power=!s.power;handled=true;}
-    else handled=mutate_common(remote,&s,action);
+    if(strcmp(action,"power")==0) {
+        s.power=!s.power;
+        handled=true;
+        if(profile_is(remote,"CARRIER_WC_UA4NE") && !s.power) {
+            s.turbo=false;
+            s.eco=false;
+        }
+    } else {
+        handled=mutate_common(remote,&s,action);
+    }
     if(!handled) return false;
 
     normalize(remote,&s);
-    if(!send_profile(remote,&s)) return false;
+
+    bool should_send = s.power || strcmp(action,"power")==0;
+    if(profile_is(remote,"PANASONIC_RKR") && strcmp(action,"nanoe")==0) {
+        should_send = true;
+    }
+
+    if(should_send && !send_profile(remote,&s)) return false;
     return save_state(storage,remote,&s);
 }
 
