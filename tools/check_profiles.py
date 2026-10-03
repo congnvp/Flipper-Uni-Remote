@@ -14,6 +14,11 @@ GRID_W = 3
 GRID_H = 6
 MAX_PAGES = 16
 MAX_ELEMENTS = 18
+MAX_SIGNALS = 32
+MAX_ACTIONS = 16
+MAX_SEQUENCE_STEPS = 8
+MAX_ACTION_ID_LEN = 23
+MAX_SIGNAL_NAME_LEN = 31
 FOCUSABLE = {"button", "hstep", "vstep", "dpad"}
 
 BINDING_SUFFIXES = (
@@ -83,6 +88,12 @@ def parse_signal_names(path: Path) -> set[str]:
             name = line.split(":", 1)[1].strip()
             if not name:
                 raise ProfileError(f"{path}: empty signal name")
+            if len(name) > MAX_SIGNAL_NAME_LEN:
+                raise ProfileError(
+                    f"{path}: signal {name!r} exceeds runtime limit {MAX_SIGNAL_NAME_LEN}"
+                )
+            if len(names) >= MAX_SIGNALS:
+                raise ProfileError(f"{path}: more than {MAX_SIGNALS} signals")
             if name in names:
                 raise ProfileError(f"{path}: duplicate signal {name}")
             names.add(name)
@@ -99,12 +110,18 @@ def parse_actions(path: Path, signals: set[str]) -> set[str]:
         count = int(data.get("ActionCount", "0"))
     except ValueError as exc:
         raise ProfileError(f"{path}: invalid ActionCount") from exc
+    if not 0 <= count <= MAX_ACTIONS:
+        raise ProfileError(f"{path}: ActionCount must be 0..{MAX_ACTIONS}")
     ids: set[str] = set()
     for i in range(count):
         action_id = data.get(f"Action{i}Id", "")
         action_type = data.get(f"Action{i}Type", "")
         if not action_id:
             raise ProfileError(f"{path}: missing Action{i}Id")
+        if len(action_id) > MAX_ACTION_ID_LEN:
+            raise ProfileError(
+                f"{path}: Action{i}Id exceeds runtime limit {MAX_ACTION_ID_LEN}"
+            )
         if action_id in ids:
             raise ProfileError(f"{path}: duplicate action id {action_id}")
         ids.add(action_id)
@@ -113,13 +130,17 @@ def parse_actions(path: Path, signals: set[str]) -> set[str]:
                 steps = int(data.get(f"Action{i}StepCount", "0"))
             except ValueError as exc:
                 raise ProfileError(f"{path}: invalid Action{i}StepCount") from exc
+            if not 0 <= steps <= MAX_SEQUENCE_STEPS:
+                raise ProfileError(
+                    f"{path}: Action{i}StepCount must be 0..{MAX_SEQUENCE_STEPS}"
+                )
             for step in range(steps):
                 signal = data.get(f"Action{i}Step{step}", "")
                 if signal not in signals:
                     raise ProfileError(
                         f"{path}: Action{i}Step{step} references unknown signal {signal!r}"
                     )
-        elif action_type == "alias":
+        elif action_type == "signal":
             signal = data.get(f"Action{i}Signal", "")
             if signal not in signals:
                 raise ProfileError(f"{path}: Action{i}Signal references unknown signal {signal!r}")
