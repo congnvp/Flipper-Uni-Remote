@@ -289,6 +289,62 @@ static void menu_move(UniUiState* ui, size_t count, UniKey key) {
     else if(key == UniKeyDown) ui->menu_index = (ui->menu_index + 1) % count;
 }
 
+static const char uni_text_chars[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.";
+
+static size_t text_char_index(char ch) {
+    for(size_t i = 0; uni_text_chars[i]; i++) {
+        if(uni_text_chars[i] == ch) return i;
+    }
+    return 0;
+}
+
+static void begin_text_edit(
+    UniApp* app,
+    UniTextTarget target,
+    const char* initial,
+    size_t limit,
+    UniUiPage return_page) {
+    if(!app) return;
+    if(limit >= sizeof(app->ui.text_buffer)) limit = sizeof(app->ui.text_buffer) - 1;
+
+    memset(app->ui.text_buffer, ' ', sizeof(app->ui.text_buffer));
+    app->ui.text_buffer[limit] = '\0';
+    if(initial) {
+        for(size_t i = 0; i < limit && initial[i]; i++) {
+            char ch = initial[i];
+            if(ch >= 'a' && ch <= 'z') ch = (char)(ch - ('a' - 'A'));
+            app->ui.text_buffer[i] = strchr(uni_text_chars, ch) ? ch : ' ';
+        }
+    }
+
+    app->ui.text_target = target;
+    app->ui.text_limit = limit;
+    app->ui.text_cursor = 0;
+    app->ui.text_return_page = return_page;
+    app->ui.page = UniUiTextEdit;
+}
+
+static void text_edit_cycle(UniUiState* ui, int direction) {
+    if(!ui || ui->text_cursor >= ui->text_limit) return;
+    const size_t count = strlen(uni_text_chars);
+    size_t index = text_char_index(ui->text_buffer[ui->text_cursor]);
+    if(direction < 0) index = index == 0 ? count - 1 : index - 1;
+    else index = (index + 1) % count;
+    ui->text_buffer[ui->text_cursor] = uni_text_chars[index];
+}
+
+static void text_edit_value(const UniUiState* ui, char* out, size_t out_size) {
+    if(!ui || !out || out_size == 0) return;
+    size_t begin = 0;
+    size_t end = ui->text_limit;
+    while(begin < end && ui->text_buffer[begin] == ' ') begin++;
+    while(end > begin && ui->text_buffer[end - 1] == ' ') end--;
+
+    const size_t length = end - begin < out_size - 1 ? end - begin : out_size - 1;
+    memcpy(out, ui->text_buffer + begin, length);
+    out[length] = '\0';
+}
+
 static size_t sequence_count(const UniActionCatalog* catalog) {
     size_t count = 0;
     for(size_t i = 0; i < catalog->count; i++) {
@@ -308,6 +364,9 @@ static const UniNamedAction* sequence_at(const UniActionCatalog* catalog, size_t
 
 static void dispatch_remote_action(UniApp* app) {
     if(!app->controller.action_ready || !app->ui.remote) return;
+
+    app->ui.press_flash_index = app->controller.focus_index;
+    app->ui.press_flash_until = furi_get_tick() + furi_ms_to_ticks(120);
 
     if(app->ui.remote->transport == UniTransportInfrared) {
         snprintf(
@@ -564,7 +623,15 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
         break;
     case 2:
         if(key == UniKeyLeft) cycle_remote_folder(app, -1);
-        else if(key == UniKeyRight || key == UniKeyOk) cycle_remote_folder(app, 1);
+        else if(key == UniKeyRight) cycle_remote_folder(app, 1);
+        else if(key == UniKeyOk) {
+            begin_text_edit(
+                app,
+                UniTextFolder,
+                remote->folder,
+                UNI_FOLDER_MAX - 1,
+                UniUiRemoteSettings);
+        }
         break;
     case 3:
         if(key == UniKeyOk) {
@@ -709,7 +776,7 @@ static void handle_layout_tools(UniApp* app, const InputEvent* event, UniKey key
     }
     if(event->type != InputTypeShort) return;
     if(key == UniKeyUp || key == UniKeyDown) {
-        menu_move(&app->ui, 7, key);
+        menu_move(&app->ui, 9, key);
         return;
     }
     if(key != UniKeyOk) return;
@@ -764,11 +831,27 @@ static void handle_layout_tools(UniApp* app, const InputEvent* event, UniKey key
             app->ui.menu_index = 0;
         }
         break;
-    case 5: /* TEMPLATE */
+    case 5: /* LABEL */
+        if(remote->element_count && app->ui.layout_element < remote->element_count) {
+            begin_text_edit(
+                app,
+                UniTextLabel,
+                remote->elements[app->ui.layout_element].label,
+                UNI_LABEL_MAX - 1,
+                UniUiLayoutTools);
+        }
+        break;
+    case 6: /* PAGE */
+        if(remote->element_count && app->ui.layout_element < remote->element_count) {
+            app->ui.page = UniUiPagePick;
+            app->ui.menu_index = remote->elements[app->ui.layout_element].page;
+        }
+        break;
+    case 7: /* TEMPLATE */
         app->ui.page = UniUiLayoutPreset;
         app->ui.menu_index = 0;
         break;
-    case 6: /* DONE */
+    case 8: /* DONE */
         app->ui.page = UniUiMenu;
         app->ui.menu_index = 0;
         break;
@@ -1044,6 +1127,94 @@ static void handle_icon_pick(UniApp* app, const InputEvent* event, UniKey key) {
     }
 }
 
+static void handle_text_edit(UniApp* app, const InputEvent* event, UniKey key) {
+    if(key == UniKeyBack && event->type == InputTypeShort) {
+        app->ui.page = app->ui.text_return_page;
+        app->ui.menu_index = app->ui.text_target == UniTextFolder ? 2 : 5;
+        return;
+    }
+
+    const bool step_event = event->type == InputTypePress || event->type == InputTypeRepeat;
+    if(step_event) {
+        if(key == UniKeyLeft && app->ui.text_cursor > 0) {
+            app->ui.text_cursor--;
+        } else if(key == UniKeyRight && app->ui.text_cursor + 1 < app->ui.text_limit) {
+            app->ui.text_cursor++;
+        } else if(key == UniKeyUp) {
+            text_edit_cycle(&app->ui, 1);
+        } else if(key == UniKeyDown) {
+            text_edit_cycle(&app->ui, -1);
+        }
+        return;
+    }
+
+    if(key != UniKeyOk || event->type != InputTypeShort) return;
+
+    char value[UNI_FOLDER_MAX] = {0};
+    text_edit_value(&app->ui, value, sizeof(value));
+
+    bool ok = false;
+    if(app->ui.text_target == UniTextFolder) {
+        ok = uni_remote_store_set_folder(
+            &app->store,
+            app->ui.selected_remote,
+            value);
+        if(ok) {
+            refresh_remote_pointer(app);
+            sync_home_category(app);
+        }
+    } else {
+        ok = uni_remote_store_set_label(
+            &app->store,
+            app->ui.selected_remote,
+            app->ui.layout_element,
+            value);
+        if(ok) refresh_remote_pointer(app);
+    }
+
+    if(ok) {
+        app->ui.page = app->ui.text_return_page;
+        app->ui.menu_index = app->ui.text_target == UniTextFolder ? 2 : 5;
+    }
+}
+
+static void handle_page_pick(UniApp* app, const InputEvent* event, UniKey key) {
+    const UniRemote* remote = selected_remote(app);
+    if(!remote || app->ui.layout_element >= remote->element_count) {
+        app->ui.page = UniUiLayoutTools;
+        app->ui.menu_index = 6;
+        return;
+    }
+
+    const size_t count =
+        remote->page_count + (remote->page_count < UNI_MAX_PAGES ? 1 : 0);
+
+    if(key == UniKeyBack && event->type == InputTypeShort) {
+        app->ui.page = UniUiLayoutTools;
+        app->ui.menu_index = 6;
+        return;
+    }
+    if(event->type != InputTypeShort) return;
+
+    if(key == UniKeyUp || key == UniKeyDown) {
+        menu_move(&app->ui, count, key);
+        return;
+    }
+    if(key != UniKeyOk || app->ui.menu_index >= count) return;
+
+    const uint8_t target = (uint8_t)app->ui.menu_index;
+    if(uni_remote_store_set_element_page(
+           &app->store,
+           app->ui.selected_remote,
+           app->ui.layout_element,
+           target)) {
+        refresh_remote_pointer(app);
+        app->ui.layout_page = target;
+        app->ui.page = UniUiLayoutEditor;
+        app->ui.layout_moving = false;
+    }
+}
+
 static void handle_keymap(UniApp* app, const InputEvent* event, UniKey key) {
     const size_t count = UniHardCount + 1;
     if(key == UniKeyBack && event->type == InputTypeShort) {
@@ -1123,6 +1294,12 @@ static void handle_event(UniApp* app, const InputEvent* event) {
         break;
     case UniUiKeymap:
         handle_keymap(app, event, key);
+        break;
+    case UniUiTextEdit:
+        handle_text_edit(app, event, key);
+        break;
+    case UniUiPagePick:
+        handle_page_pick(app, event, key);
         break;
     }
 }
