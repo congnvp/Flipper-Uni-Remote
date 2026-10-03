@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ir_transport.h"
+#include "bt_transport.h"
 #include "remote.h"
 #include <stdbool.h>
 #include <stddef.h>
@@ -39,11 +40,12 @@ typedef struct {
 typedef struct {
     Storage* storage;
     UniIrTransport* ir;
+    UniBtTransport* bt;
     UniSignalCatalog signals;
     UniActionCatalog actions;
 } UniActionEngine;
 
-void uni_action_engine_init(UniActionEngine* engine, Storage* storage, UniIrTransport* ir);
+void uni_action_engine_init(UniActionEngine* engine, Storage* storage, UniIrTransport* ir, UniBtTransport* bt);
 bool uni_action_engine_load(UniActionEngine* engine, const UniRemote* remote);
 bool uni_action_engine_execute(
     UniActionEngine* engine,
