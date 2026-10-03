@@ -29,6 +29,28 @@ static bool write_text_file(Storage* storage, const char* path, const char* text
     return ok;
 }
 
+static void ensure_ir_package(
+    Storage* storage,
+    const char* folder,
+    const char* remote_text,
+    const char* signal_text) {
+    char dir[UNI_PATH_MAX];
+    char remote_path[UNI_PATH_MAX];
+    char signal_path[UNI_PATH_MAX];
+
+    snprintf(dir, sizeof(dir), UNI_REMOTES_DIR "/%.120s", folder);
+    storage_common_mkdir(storage, dir);
+    snprintf(remote_path, sizeof(remote_path), UNI_REMOTES_DIR "/%.120s/remote.ur", folder);
+    snprintf(signal_path, sizeof(signal_path), UNI_REMOTES_DIR "/%.120s/signals.ir", folder);
+
+    if(!storage_file_exists(storage, remote_path)) {
+        write_text_file(storage, remote_path, remote_text);
+    }
+    if(!storage_file_exists(storage, signal_path)) {
+        write_text_file(storage, signal_path, signal_text);
+    }
+}
+
 static void ensure_default_package(Storage* storage) {
     storage_common_mkdir(storage, UNI_REMOTES_DIR);
     storage_common_mkdir(storage, UNI_DEFAULT_DIR);
@@ -186,6 +208,7 @@ static void ensure_default_package(Storage* storage) {
             "StateProfile: %s\n"
             "Order: %lu\n"
             "RepeatEnabled: false\n"
+            "IrBurst: 1\n"
             "PageCount: 2\n"
             "SignalFile: \n"
             "ActionFile: \n"
@@ -221,12 +244,128 @@ static void ensure_default_package(Storage* storage) {
             carrier ? 9U : (panasonic ? 9U : 8U),
             carrier ? "swing" : "swing",
             carrier ?
-                "#\nElement8Type: button\nElement8Id: fix\nElement8Rect: 2 2 1 1\nElement8Label: FIX\nElement8Icon: down\nElement8Tap: st:fix\n" :
+                "#\nElement8Page: 1\nElement8Type: button\nElement8Id: fix\nElement8Rect: 2 2 1 1\nElement8Label: FIX\nElement8Icon: down\nElement8Tap: st:fix\n" :
             panasonic ?
-                "#\nElement8Type: button\nElement8Id: nanoe\nElement8Rect: 2 2 1 1\nElement8Label: NANO\nElement8Icon: fan\nElement8Tap: st:nanoe\n" :
+                "#\nElement8Page: 1\nElement8Type: button\nElement8Id: nanoe\nElement8Rect: 2 2 1 1\nElement8Label: NANO\nElement8Icon: fan\nElement8Tap: st:nanoe\n" :
                 "");
         write_text_file(storage, path, text);
     }
+
+    static const char sony_remote[] =
+        "Filetype: Flipper Uni Remote\n"
+        "Version: 1\n"
+        "Id: sony_rm_pj8\n"
+        "Name: Sony RM-PJ8\n"
+        "ShortName: SON\n"
+        "Transport: IR\n"
+        "Order: 60\n"
+        "RepeatEnabled: true\n"
+        "IrBurst: 3\n"
+        "PageCount: 2\n"
+        "SignalFile: signals.ir\n"
+        "ActionFile: \n"
+        "BluetoothProfile: \n"
+        "HardUpHold: \nHardDownHold: \nHardLeftHold: \nHardRightHold: \nHardOkHold: \n"
+        "ElementCount: 18\n"
+        "#\nElement0Type: button\nElement0Id: power\nElement0Rect: 0 0 1 1\nElement0Label: PWR\nElement0Icon: pwr\nElement0Tap: sig:Power\n"
+        "#\nElement1Type: button\nElement1Id: input\nElement1Rect: 1 0 1 1\nElement1Label: IN\nElement1Icon: input\nElement1Tap: sig:Input\n"
+        "#\nElement2Type: button\nElement2Id: menu\nElement2Rect: 2 0 1 1\nElement2Label: MENU\nElement2Icon: menu\nElement2Tap: sig:Menu\n"
+        "#\nElement3Type: dpad\nElement3Id: nav\nElement3Rect: 0 1 3 3\nElement3Up: sig:Up\nElement3Down: sig:Down\nElement3Left: sig:Left\nElement3Right: sig:Right\nElement3Ok: sig:Enter\n"
+        "#\nElement4Type: button\nElement4Id: return\nElement4Rect: 0 1 1 1\nElement4Label: RET\nElement4Icon: back\nElement4Tap: sig:Return\n"
+        "#\nElement5Type: button\nElement5Id: aspect\nElement5Rect: 2 1 1 1\nElement5Label: ASP\nElement5Icon: asp\nElement5Tap: sig:Aspect\n"
+        "#\nElement6Type: button\nElement6Id: voldn\nElement6Rect: 0 3 1 1\nElement6Label: V-\nElement6Icon: volm\nElement6Tap: sig:Vol_dn\n"
+        "#\nElement7Type: button\nElement7Id: volup\nElement7Rect: 2 3 1 1\nElement7Label: V+\nElement7Icon: volp\nElement7Tap: sig:Vol_up\n"
+        "#\nElement8Type: button\nElement8Id: freeze\nElement8Rect: 0 4 1 1\nElement8Label: FRZ\nElement8Icon: frz\nElement8Tap: sig:Freeze\n"
+        "#\nElement9Type: button\nElement9Id: blank\nElement9Rect: 1 4 1 1\nElement9Label: BLK\nElement9Icon: blank\nElement9Tap: sig:Blank\n"
+        "#\nElement10Type: button\nElement10Id: mute\nElement10Rect: 2 4 1 1\nElement10Label: MUT\nElement10Icon: mut\nElement10Tap: sig:Muting\n"
+        "#\nElement11Page: 1\nElement11Type: button\nElement11Id: apa\nElement11Rect: 0 0 1 1\nElement11Label: APA\nElement11Icon: auto\nElement11Tap: sig:Apa\n"
+        "#\nElement12Page: 1\nElement12Type: button\nElement12Id: eco\nElement12Rect: 1 0 1 1\nElement12Label: ECO\nElement12Icon: eco\nElement12Tap: sig:Eco_mode\n"
+        "#\nElement13Page: 1\nElement13Type: button\nElement13Id: reset\nElement13Rect: 2 0 1 1\nElement13Label: RST\nElement13Icon: back\nElement13Tap: sig:Reset\n"
+        "#\nElement14Page: 1\nElement14Type: button\nElement14Id: key\nElement14Rect: 0 1 1 1\nElement14Label: KEY\nElement14Icon: key\nElement14Tap: sig:Keystone\n"
+        "#\nElement15Page: 1\nElement15Type: button\nElement15Id: pattern\nElement15Rect: 1 1 1 1\nElement15Label: PAT\nElement15Tap: sig:Pattern\n"
+        "#\nElement16Page: 1\nElement16Type: button\nElement16Id: zoomdn\nElement16Rect: 0 2 1 1\nElement16Label: Z-\nElement16Icon: zoom\nElement16Tap: sig:D_zoom_down\n"
+        "#\nElement17Page: 1\nElement17Type: button\nElement17Id: zoomup\nElement17Rect: 1 2 1 1\nElement17Label: Z+\nElement17Icon: zoom\nElement17Tap: sig:D_zoom_up\n";
+
+    static const char sony_signals[] =
+        "Filetype: IR signals file\nVersion: 1\n"
+        "#\nname: Power\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 15 00 00 00\n"
+        "#\nname: Input\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 57 00 00 00\n"
+        "#\nname: Apa\ntype: parsed\nprotocol: SIRC20\naddress: 5A 05 00 00\ncommand: 60 00 00 00\n"
+        "#\nname: Eco_mode\ntype: parsed\nprotocol: SIRC20\naddress: FA 04 00 00\ncommand: 11 00 00 00\n"
+        "#\nname: Menu\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 29 00 00 00\n"
+        "#\nname: Reset\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 7B 00 00 00\n"
+        "#\nname: Up\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 35 00 00 00\n"
+        "#\nname: Down\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 36 00 00 00\n"
+        "#\nname: Left\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 34 00 00 00\n"
+        "#\nname: Right\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 33 00 00 00\n"
+        "#\nname: Enter\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 5A 00 00 00\n"
+        "#\nname: Return\ntype: parsed\nprotocol: SIRC20\naddress: FA 04 00 00\ncommand: 6F 00 00 00\n"
+        "#\nname: Aspect\ntype: parsed\nprotocol: SIRC20\naddress: 5A 05 00 00\ncommand: 6E 00 00 00\n"
+        "#\nname: Keystone\ntype: parsed\nprotocol: SIRC20\naddress: 5A 05 00 00\ncommand: 3A 00 00 00\n"
+        "#\nname: Pattern\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 7E 00 00 00\n"
+        "#\nname: D_zoom_up\ntype: parsed\nprotocol: SIRC20\naddress: 5A 05 00 00\ncommand: 6A 00 00 00\n"
+        "#\nname: D_zoom_down\ntype: parsed\nprotocol: SIRC20\naddress: 5A 05 00 00\ncommand: 6B 00 00 00\n"
+        "#\nname: Vol_up\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 12 00 00 00\n"
+        "#\nname: Vol_dn\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 13 00 00 00\n"
+        "#\nname: Freeze\ntype: parsed\nprotocol: SIRC20\naddress: 5A 05 00 00\ncommand: 67 00 00 00\n"
+        "#\nname: Blank\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 24 00 00 00\n"
+        "#\nname: Muting\ntype: parsed\nprotocol: SIRC15\naddress: 54 00 00 00\ncommand: 14 00 00 00\n";
+
+    static const char optoma_remote[] =
+        "Filetype: Flipper Uni Remote\n"
+        "Version: 1\n"
+        "Id: optoma_hr21g\n"
+        "Name: Optoma HR21G\n"
+        "ShortName: OPT\n"
+        "Transport: IR\n"
+        "Order: 70\n"
+        "RepeatEnabled: true\n"
+        "IrBurst: 1\n"
+        "PageCount: 2\n"
+        "SignalFile: signals.ir\n"
+        "ActionFile: \n"
+        "BluetoothProfile: \n"
+        "HardUpHold: \nHardDownHold: \nHardLeftHold: \nHardRightHold: \nHardOkHold: \n"
+        "ElementCount: 15\n"
+        "#\nElement0Type: button\nElement0Id: power\nElement0Rect: 0 0 1 1\nElement0Label: PWR\nElement0Icon: pwr\nElement0Tap: sig:Power\n"
+        "#\nElement1Type: button\nElement1Id: source\nElement1Rect: 1 0 1 1\nElement1Label: SRC\nElement1Icon: src\nElement1Tap: sig:Source\n"
+        "#\nElement2Type: button\nElement2Id: menu\nElement2Rect: 2 0 1 1\nElement2Label: MENU\nElement2Icon: menu\nElement2Tap: sig:Menu\n"
+        "#\nElement3Type: dpad\nElement3Id: nav\nElement3Rect: 0 1 3 3\nElement3Up: sig:Up\nElement3Down: sig:Down\nElement3Left: sig:Left\nElement3Right: sig:Right\nElement3Ok: sig:Enter\n"
+        "#\nElement4Type: button\nElement4Id: return\nElement4Rect: 0 1 1 1\nElement4Label: RET\nElement4Icon: back\nElement4Tap: sig:Return\n"
+        "#\nElement5Type: button\nElement5Id: aspect\nElement5Rect: 2 1 1 1\nElement5Label: ASP\nElement5Icon: asp\nElement5Tap: sig:Aspect_ratio\n"
+        "#\nElement6Type: button\nElement6Id: voldn\nElement6Rect: 0 3 1 1\nElement6Label: V-\nElement6Icon: volm\nElement6Tap: sig:Volume_down\n"
+        "#\nElement7Type: button\nElement7Id: volup\nElement7Rect: 2 3 1 1\nElement7Label: V+\nElement7Icon: volp\nElement7Tap: sig:Volume_up\n"
+        "#\nElement8Type: button\nElement8Id: mute\nElement8Rect: 0 4 1 1\nElement8Label: MUT\nElement8Icon: mut\nElement8Tap: sig:Mute\n"
+        "#\nElement9Type: button\nElement9Id: freeze\nElement9Rect: 1 4 1 1\nElement9Label: FRZ\nElement9Icon: frz\nElement9Tap: sig:Freeze\n"
+        "#\nElement10Type: button\nElement10Id: key\nElement10Rect: 2 4 1 1\nElement10Label: KEY\nElement10Icon: key\nElement10Tap: sig:Keystone\n"
+        "#\nElement11Page: 1\nElement11Type: button\nElement11Id: mode\nElement11Rect: 0 0 1 1\nElement11Label: MODE\nElement11Icon: mode\nElement11Tap: sig:Mode\n"
+        "#\nElement12Page: 1\nElement12Type: button\nElement12Id: settings\nElement12Rect: 1 0 1 1\nElement12Label: SET\nElement12Icon: set\nElement12Tap: sig:Settings\n"
+        "#\nElement13Page: 1\nElement13Type: button\nElement13Id: avmute\nElement13Rect: 2 0 1 1\nElement13Label: AV\nElement13Icon: blank\nElement13Tap: sig:Av_mute\n"
+        "#\nElement14Page: 1\nElement14Type: button\nElement14Id: source2\nElement14Rect: 1 1 1 1\nElement14Label: SRC\nElement14Icon: src\nElement14Tap: sig:Source\n";
+
+    static const char optoma_signals[] =
+        "Filetype: IR signals file\nVersion: 1\n"
+        "#\nname: Power\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 02 00 00 00\n"
+        "#\nname: Aspect_ratio\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 64 00 00 00\n"
+        "#\nname: Source\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: C3 00 00 00\n"
+        "#\nname: Mode\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 05 00 00 00\n"
+        "#\nname: Up\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 11 00 00 00\n"
+        "#\nname: Left\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 10 00 00 00\n"
+        "#\nname: Right\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 12 00 00 00\n"
+        "#\nname: Down\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 14 00 00 00\n"
+        "#\nname: Enter\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 0F 00 00 00\n"
+        "#\nname: Settings\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: A8 00 00 00\n"
+        "#\nname: Return\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 0D 00 00 00\n"
+        "#\nname: Menu\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 0E 00 00 00\n"
+        "#\nname: Volume_down\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 8F 00 00 00\n"
+        "#\nname: Mute\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 52 00 00 00\n"
+        "#\nname: Volume_up\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 8C 00 00 00\n"
+        "#\nname: Freeze\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 06 00 00 00\n"
+        "#\nname: Keystone\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 07 00 00 00\n"
+        "#\nname: Av_mute\ntype: parsed\nprotocol: NEC\naddress: 32 00 00 00\ncommand: 03 00 00 00\n";
+
+    ensure_ir_package(storage, "sony_rm_pj8", sony_remote, sony_signals);
+    ensure_ir_package(storage, "optoma_hr21g", optoma_remote, optoma_signals);
 }
 
 
