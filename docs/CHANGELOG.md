@@ -25,7 +25,8 @@ Completion pass for the remaining software-side authoring and interaction work. 
 
 ### Validation
 
-- Final 0.10 CI/artifact evidence is recorded on PR #11 and in `TEST_MATRIX.md`.
+- GitHub Actions run #255 passed version consistency, six bundled profiles, malformed/nested-macro regressions, release-channel uFBT build, artifact upload and lint.
+- Run #255 artifact contains one FAP plus all six profile directories; ZIP SHA-256 `cd434903ef5d6b16769b0f3d519af8749595e0e4e8348e4984446ad30d97b051`.
 - Hardware-facing rows remain TBD until physical testing.
 
 ## [0.9.0] - 2026-10-03
