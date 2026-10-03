@@ -162,6 +162,17 @@ Action0Delay0: 60001
 """
     expect_fail("excessive_delay", BASE_REMOTE.replace("sig:Power", "act:slow"), long_delay)
 
+    bad_id_actions = """Filetype: Flipper Uni Remote Actions
+Version: 1
+ActionCount: 1
+Action0Id: bad macro
+Action0Type: sequence
+Action0StepCount: 1
+Action0Step0: Power
+Action0Delay0: 0
+"""
+    expect_fail("bad_action_id", BASE_REMOTE.replace("sig:Power", "act:bad macro"), bad_id_actions)
+
     bt_remote = BASE_REMOTE.replace("Transport: IR", "Transport: BT").replace(
         "BluetoothProfile:", "BluetoothProfile: bad profile!"
     ).replace("Element0Tap: sig:Power", "Element0Tap: bt:media:play_pause")
