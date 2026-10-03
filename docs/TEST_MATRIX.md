@@ -15,7 +15,7 @@ A green build is not hardware evidence.
 | Bluetooth Media | PASS | PASS | TBD | TBD | BLE HID links through `ble_profile`; real pair/reconnect pending. |
 | Editor + nested macros | PASS | PASS | N/A | N/A | Label/Page/Folder editing, nested macro validation/editor and lazy Home path compile in CI; no target-device claim. |
 
-Software integration evidence is tracked on PR #11. The 0.10 candidate adds nested-macro regression cases and a bundled nested macro; the final run after the 0.10 version/docs commits must pass before release packaging is considered current.
+Software integration evidence: PR #11, GitHub Actions run #255 PASS for version consistency, six bundled profiles, malformed/nested-macro regressions, official release-channel uFBT build, artifact upload and lint. Artifact inspection found 24 files: one FAP plus all six profile directories.
 
 ## Required software checks
 
