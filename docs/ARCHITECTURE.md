@@ -46,7 +46,7 @@ D-pad occupies a five-cell cross inside a 3×3 bound, allowing corner controls.
 
 ## Ordinary IR
 
-`src/action_engine.c` resolves `sig:` and `act:` bindings.
+`src/action_engine.c` resolves `sig:` and `act:` bindings. Sequence steps can recursively invoke other actions; the action graph is validated on load/save and execution carries a cycle guard.
 
 `src/ir_transport.c` reads standard Flipper IR signal files and transmits parsed/raw signals. Parsed signals can use the remote's `IrBurst`; raw signals retain their captured timing payload.
 
@@ -74,7 +74,7 @@ Leaving the BT remote releases HID keys, disconnects, restores the default key p
 
 The logical canvas is 64×128 portrait, mapped onto the native 128×64 LCD.
 
-Packages store logical 3×6 rectangles, not pixels. Multi-page layouts reuse the same logical grid per page. The editor operates on the same geometry and transport-valid action model as runtime.
+Packages store logical 3×6 rectangles, not pixels. Multi-page layouts reuse the same logical grid per page. The editor operates on the same geometry and transport-valid action model as runtime. On-device authoring also covers labels, page assignment, folder names and IR sequence macros.
 
 ## Validation
 
