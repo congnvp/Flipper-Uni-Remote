@@ -1,100 +1,121 @@
 # Flipper Uni Remote
 
-Development rewrite of the Flipper Zero universal-remote FAP.
+Universal remote FAP for Flipper Zero. The current development branch combines the data-driven runtime, editable portrait layout, IR/stateful-IR engines, and BLE HID transport.
 
-Current baseline: **v0.1.0 DEV**.
-
-This branch intentionally starts from the UI/UX layer before the new runtime core is added. The FAP currently provides an interactive prototype for validating navigation, the 3×6 portrait grid, Main Screen categories, Settings, Remote Manager, per-remote management, layout/control mapping flows, and IR-file import flows.
-
-## UI model
-
-```text
-MAIN SCREEN
-├── FAVOURITE
-├── user folders...
-├── UNCATEGORIZED
-└── SETTINGS
-    ├── REMOTE MANAGER
-    │   └── <remote>
-    │       ├── GENERAL
-    │       ├── LAYOUT
-    │       ├── CONTROLS
-    │       ├── IR FILES
-    │       ├── DUPLICATE
-    │       └── DELETE
-    ├── FOLDER MANAGER
-    ├── APP SETTINGS
-    ├── DATA
-    └── ABOUT
-```
-
-Main Screen uses a vertical text-only remote list. LEFT/RIGHT switches pages in a loop:
-
-```text
-FAVOURITE -> user folders -> UNCATEGORIZED -> FAVOURITE
-```
-
-Runtime remote screens use the fixed logical **3 columns × 6 rows** grid.
-
-## DEV build
+Current version: **v0.1.0 DEV**
 
 Development branch:
 
 ```text
-dev/ui-v0.1.0
+dev/full-v0.1.0
 ```
 
-Development release tag:
+Development prerelease:
 
 ```text
-dev-v0.1.0
+dev-full-v0.1.0
 ```
 
-Every push to a `dev/**` branch is built with official uFBT. The FAP is available in two places:
+## Current runtime
 
-1. GitHub Actions artifact named `flipper-uni-remote-dev-v0.1.0-...`.
-2. GitHub prerelease `dev-v0.1.0`, whose FAP asset is replaced by the newest successful dev build.
-
-The on-device About screen identifies the build as `V0.1.0 DEV`.
-
-## Scope of v0.1.0 DEV
-
-Implemented for UI testing:
-
-- Main Screen with FAVOURITE first.
-- User-folder examples and system UNCATEGORIZED page.
-- Circular LEFT/RIGHT page navigation.
-- Vertical text-only remote list.
-- SETTINGS entry on Main Screen.
-- Remote Manager and per-remote management flow.
-- Separate Layout, Controls, and IR Files management screens.
-- 3×6 grid runtime previews for TV, AC, Projector, and Generic remotes.
-- Mapping-flow mock UI.
-- IR import-flow mock UI with FLIPPER IR and BROWSE STORAGE choices.
 - English-only system UI.
-- Long Back remains system escape.
-- Physical portrait direction mapping retained from the previously hardware-verified build.
+- Portrait controls with the previously verified physical-key rotation.
+- Fixed 3-column × 6-row logical layout.
+- 19 px control regions on 20 px pitch below an 8 px status bar.
+- Up to 8 pages per remote, with a compact page rail.
+- D-pad is focused first and captured with OK; Back exits D-pad capture.
+- Long Back is the global escape path.
+- Only one remote layout is loaded at a time.
 
-Not implemented yet:
+## Transports
 
-- IR transmission.
-- Persistent storage.
-- Real Flipper file browser.
-- Copying `.ir` files.
-- Text input / rename.
-- Layout persistence.
-- Real control mapping.
-- Folder persistence.
-- Runtime/editor RAM-domain implementation.
+### Normal IR
 
-These are intentionally deferred until the UI/UX is approved.
+A remote owns its copied `signals.ir` file. The runtime supports parsed and raw Flipper IR signals, action sequences, repeat, and per-remote `IrBurst`.
 
-## Build locally
+Remote settings -> **IMPORT IR** opens the stock Flipper file browser at `/ext/infrared`, validates an IR signals file, then copies it into the selected remote package.
+
+### Stateful IR
+
+Built-in stateful engines currently cover:
+
+- LG AKB75215401 family
+- Daikin ARC433A73
+- Panasonic RKR-style remote
+- Carrier/Toshiba WC-UA4NE
+
+State is persisted per remote. Supported controls include the applicable subset of power, mode, temperature, fan, swing, Eco, Powerful/Turbo, Nanoe and Carrier fixed/swing commands.
+
+Remote settings -> **RESET STATE** deletes the local state snapshot and returns the profile to its default state on next use.
+
+### Bluetooth HID
+
+BLE HID remotes use Flipper's official HID BLE profile. Each `BluetoothProfile` gets its own persistent key file and derived Bluetooth identity so paired devices can be remembered independently.
+
+Built-in bindings include navigation, Enter, Home, Back, Power, volume, mute and media controls. Numeric keyboard/consumer usages can also be mapped through `bt:kb:<usage>` and `bt:cc:<usage>`.
+
+Remote settings -> **FORGET BT** removes the selected profile's pairing data and restarts that HID profile when active.
+
+## Built-in development remotes
+
+Create-only examples are installed when missing; existing user copies are not overwritten:
+
+- Demo TV
+- LG AC
+- Daikin AC
+- Panasonic AC
+- Carrier AC
+- Sony RM-PJ8 projector
+- Optoma HR21G-YHGD03 projector
+- Bluetooth TV
+
+Sony and Optoma packages use the signal data from their dedicated repositories. Sony uses a three-frame IR burst to match the standalone RM-PJ8 implementation.
+
+## Layout editor
+
+The editor persists layout changes in each remote's `remote.ur`.
+
+Supported elements:
+
+- 1×1, 1×2 and 2×1 buttons
+- horizontal and vertical step controls
+- 3×3 cross-shaped D-pad; its four corner cells remain available
+- screen/status element types
+- add, replace, remove and move
+- signal/sequence mapping
+- icon assignment
+- layout templates
+
+The remote model supports up to 72 elements across up to 8 pages.
+
+## Package layout
+
+Each remote lives under:
+
+```text
+apps_data/flipper_uni_remote/remotes/<remote-id>/
+├── remote.ur
+├── signals.ir      # normal IR, when used
+├── actions.ur      # optional sequences
+└── state.bin       # stateful IR, when used
+```
+
+Bluetooth pairing keys are stored separately under the app's `bt/` directory.
+
+## Build
+
+Every push to `dev/**` is built using the official uFBT action. Development runs are serialized so the rolling prerelease tag cannot be updated concurrently.
+
+Local build:
 
 ```bash
 python3 tools/check_version.py
 ufbt
 ```
+
+## Current limitations
+
+This development branch is functional rather than feature-complete relative to the longer UI/UX specification. Folder/Favourite library management, on-device text rename/create flows, and a full remote-package manager still need to be brought over. Hardware behavior must also be verified on a real Flipper Zero even when CI compilation and lint pass.
 
 ## License
 
