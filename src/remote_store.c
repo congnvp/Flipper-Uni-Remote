@@ -366,6 +366,43 @@ static void ensure_default_package(Storage* storage) {
 
     ensure_ir_package(storage, "sony_rm_pj8", sony_remote, sony_signals);
     ensure_ir_package(storage, "optoma_hr21g", optoma_remote, optoma_signals);
+
+    static const char bt_tv_remote[] =
+        "Filetype: Flipper Uni Remote\n"
+        "Version: 1\n"
+        "Id: bt_smart_tv\n"
+        "Name: Bluetooth TV\n"
+        "ShortName: BTV\n"
+        "Transport: BT\n"
+        "Order: 80\n"
+        "RepeatEnabled: true\n"
+        "IrBurst: 1\n"
+        "PageCount: 1\n"
+        "SignalFile: \n"
+        "ActionFile: \n"
+        "BluetoothProfile: smart_tv\n"
+        "HardUpHold: \nHardDownHold: \nHardLeftHold: \nHardRightHold: \nHardOkHold: \n"
+        "ElementCount: 11\n"
+        "#\nElement0Type: button\nElement0Id: power\nElement0Rect: 0 0 1 1\nElement0Label: PWR\nElement0Icon: pwr\nElement0Tap: bt:power\n"
+        "#\nElement1Type: button\nElement1Id: home\nElement1Rect: 1 0 1 1\nElement1Label: HOME\nElement1Icon: home\nElement1Tap: bt:home\n"
+        "#\nElement2Type: button\nElement2Id: back\nElement2Rect: 2 0 1 1\nElement2Label: BACK\nElement2Icon: back\nElement2Tap: bt:back\n"
+        "#\nElement3Type: dpad\nElement3Id: nav\nElement3Rect: 0 1 3 3\nElement3Up: bt:up\nElement3Down: bt:down\nElement3Left: bt:left\nElement3Right: bt:right\nElement3Ok: bt:ok\n"
+        "#\nElement4Type: button\nElement4Id: voldn\nElement4Rect: 0 1 1 1\nElement4Label: V-\nElement4Icon: volm\nElement4Tap: bt:vol-\n"
+        "#\nElement5Type: button\nElement5Id: volup\nElement5Rect: 2 1 1 1\nElement5Label: V+\nElement5Icon: volp\nElement5Tap: bt:vol+\n"
+        "#\nElement6Type: button\nElement6Id: prev\nElement6Rect: 0 3 1 1\nElement6Label: PREV\nElement6Icon: prev\nElement6Tap: bt:prev\n"
+        "#\nElement7Type: button\nElement7Id: next\nElement7Rect: 2 3 1 1\nElement7Label: NEXT\nElement7Icon: next\nElement7Tap: bt:next\n"
+        "#\nElement8Type: button\nElement8Id: mute\nElement8Rect: 0 4 1 1\nElement8Label: MUTE\nElement8Icon: mut\nElement8Tap: bt:mute\n"
+        "#\nElement9Type: button\nElement9Id: play\nElement9Rect: 1 4 1 1\nElement9Label: PLAY\nElement9Icon: play\nElement9Tap: bt:play\n"
+        "#\nElement10Type: button\nElement10Id: stop\nElement10Rect: 2 4 1 1\nElement10Label: STOP\nElement10Icon: stop\nElement10Tap: bt:stop\n";
+
+    char bt_dir[UNI_PATH_MAX];
+    char bt_path[UNI_PATH_MAX];
+    snprintf(bt_dir, sizeof(bt_dir), UNI_REMOTES_DIR "/bt_smart_tv");
+    storage_common_mkdir(storage, bt_dir);
+    snprintf(bt_path, sizeof(bt_path), UNI_REMOTES_DIR "/bt_smart_tv/remote.ur");
+    if(!storage_file_exists(storage, bt_path)) {
+        write_text_file(storage, bt_path, bt_tv_remote);
+    }
 }
 
 
