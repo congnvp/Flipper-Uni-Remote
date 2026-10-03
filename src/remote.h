@@ -14,6 +14,7 @@
 #define UNI_PATH_MAX 160
 #define UNI_BT_PROFILE_MAX 24
 #define UNI_STATE_ADAPTER_MAX 16
+#define UNI_FOLDER_MAX 24
 #define UNI_ICON_ID_MAX 9
 
 typedef enum {
@@ -84,6 +85,8 @@ typedef struct {
     bool repeat_enabled;
     uint8_t page_count;
     uint8_t ir_burst;
+    bool favorite;
+    char folder[UNI_FOLDER_MAX];
 
     char config_path[UNI_PATH_MAX];
     char signal_file[64];
