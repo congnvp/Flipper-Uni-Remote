@@ -378,16 +378,39 @@ static size_t scroll_start(size_t selected,size_t count) {
 }
 
 static void draw_home(Canvas* canvas,const UniUiState* state) {
-    draw_menu_header(canvas,"UNI REMOTE");
-    const size_t count=uni_remote_store_count(state->store);
-    const size_t start=scroll_start(state->selected_remote,count);
-    for(size_t row=0;row<5 && start+row<count;row++) {
-        const size_t index=start+row;
-        const UniRemote* r=uni_remote_store_get(state->store,index);
-        char right[4]={0}; snprintf(right,sizeof(right),"%.3s",uni_transport_label(r->transport));
-        draw_menu_row(canvas,24+(int16_t)row*19,r->name,right,index==state->selected_remote);
+    char category[13]={0};
+    if(!uni_remote_store_category_name(
+           state->store,
+           state->home_category,
+           category,
+           sizeof(category))) {
+        snprintf(category,sizeof(category),"UNI REMOTE");
     }
-    text_center3(canvas,"BACK MENU",32,119,ColorBlack);
+    draw_menu_header(canvas,category);
+
+    const size_t count=
+        uni_remote_store_category_remote_count(state->store,state->home_category);
+    const size_t selected_pos=
+        uni_remote_store_category_position(
+            state->store,state->home_category,state->selected_remote);
+    const size_t start=scroll_start(selected_pos,count);
+    for(size_t row=0;row<5 && start+row<count;row++) {
+        const size_t position=start+row;
+        const size_t index=
+            uni_remote_store_category_remote_at(
+                state->store,state->home_category,position);
+        const UniRemote* r=uni_remote_store_get(state->store,index);
+        if(!r) continue;
+        char right[5]={0};
+        snprintf(right,sizeof(right),"%s%.2s",r->favorite?"*":"",uni_transport_label(r->transport));
+        draw_menu_row(
+            canvas,
+            24+(int16_t)row*19,
+            r->name,
+            right,
+            index==state->selected_remote);
+    }
+    text_center3(canvas,"< CAT >  BACK MENU",32,119,ColorBlack);
 }
 
 static void draw_main_menu(Canvas* canvas,const UniUiState* state) {
@@ -409,17 +432,24 @@ static void draw_global(Canvas* canvas,const UniUiState* state) {
 static void draw_remote_settings(Canvas* canvas,const UniUiState* state) {
     const UniRemote* r=state->remote?state->remote:uni_remote_store_get(state->store,state->selected_remote);
     draw_menu_header(canvas,"REMOTE");
-    static const char* labels[]={"REPEAT","DEFAULT","LAYOUT","KEYMAP","BT ID","BACK"};
-    const size_t count=6,start=scroll_start(state->menu_index,count);
+    static const char* labels[]={
+        "REPEAT","FAV","FOLDER","DEFAULT","LAYOUT","KEYMAP","BT ID","BACK"};
+    const size_t count=8,start=scroll_start(state->menu_index,count);
     for(size_t row=0;row<5;row++) {
         const size_t i=start+row; if(i>=count) break;
         const char* value="";
-        char bt[9]={0};
+        char temp[10]={0};
         if(i==0) value=r&&r->repeat_enabled?"ON":"OFF";
-        else if(i==1) value="SET";
-        else if(i==2) value="EDIT";
-        else if(i==3) value="EDIT";
-        else if(i==4) { if(r) snprintf(bt,sizeof(bt),"%.8s",r->bluetooth_profile); value=bt; }
+        else if(i==1) value=r&&r->favorite?"ON":"OFF";
+        else if(i==2) {
+            if(r&&r->folder[0]) snprintf(temp,sizeof(temp),"%.9s",r->folder);
+            else snprintf(temp,sizeof(temp),"NONE");
+            value=temp;
+        }
+        else if(i==3) value="SET";
+        else if(i==4) value="EDIT";
+        else if(i==5) value="EDIT";
+        else if(i==6) { if(r) snprintf(temp,sizeof(temp),"%.9s",r->bluetooth_profile); value=temp; }
         draw_menu_row(canvas,24+(int16_t)row*19,labels[i],value,i==state->menu_index);
     }
 }
