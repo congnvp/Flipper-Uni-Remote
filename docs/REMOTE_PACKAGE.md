@@ -30,6 +30,8 @@ ShortName: TV
 Transport: IR
 Order: 10
 RepeatEnabled: true
+PageCount: 1
+IrBurst: 1
 SignalFile: signals.ir
 ActionFile: actions.ur
 BluetoothProfile: living_tv
@@ -65,6 +67,7 @@ Common fields:
 ```text
 Element0Type: button
 Element0Id: power
+Element0Page: 0
 Element0Rect: 1 4 1 2
 Element0Label: PWR
 Element0Icon: pwr
@@ -82,6 +85,32 @@ Supported types:
 - `dpad`
 
 `Rect: X Y W H` uses the logical 3×6 grid.
+
+### Multiple pages
+
+`PageCount` is optional and defaults to `1` for older packages. Valid values are `1..16`.
+
+Each element may declare:
+
+```text
+Element0Page: 0
+```
+
+The field is optional and defaults to page `0`. Elements on different pages may reuse the same grid cells.
+
+Runtime navigation stays spatial within the active page. When focus is already at the left or right edge and another LEFT/RIGHT navigation cannot find an element, the engine wraps to the previous/next non-empty page and focuses its first control. D-pad/H-step/V-step directions keep their normal control semantics while captured.
+
+For multi-page layouts, a compact page indicator is drawn near the bottom edge. Keep that small area visually clear when possible.
+
+### Parsed IR burst count
+
+`IrBurst` is optional and defaults to `1`. It controls how many initial parsed IR frames are sent for one non-repeat activation. This is useful for protocols/devices such as Sony SIRC remotes that expect a short burst.
+
+```text
+IrBurst: 3
+```
+
+OS-generated hold/repeat events still send a single repeat frame. Raw signals are transmitted once because their timing payload may already include repetition.
 
 ### Button
 
