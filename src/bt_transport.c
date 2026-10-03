@@ -203,3 +203,29 @@ bool uni_bt_transport_is_active(const UniBtTransport* transport) {
 bool uni_bt_transport_is_connected(const UniBtTransport* transport) {
     return transport && transport->active && transport->connected;
 }
+
+bool uni_bt_transport_forget_profile(UniBtTransport* transport, const char* profile_id) {
+    if(!transport || !transport->bt) return false;
+    if(!profile_id || !profile_id[0]) profile_id = "default";
+
+    const uint32_t hash = hash_profile(profile_id);
+    const bool was_active =
+        transport->active && transport->profile_hash == hash &&
+        strcmp(transport->profile_id, profile_id) == 0;
+
+    if(was_active) uni_bt_transport_deactivate(transport);
+
+    char keys_path[160];
+    snprintf(
+        keys_path,
+        sizeof(keys_path),
+        APP_DATA_PATH("bt/%08lX.keys"),
+        (unsigned long)hash);
+    const FS_Error status = storage_common_remove(transport->storage, keys_path);
+    const bool removed = status == FSE_OK || status == FSE_NOT_EXIST;
+
+    if(was_active) {
+        return removed && uni_bt_transport_activate(transport, profile_id);
+    }
+    return removed;
+}
