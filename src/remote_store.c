@@ -194,8 +194,11 @@ static void ensure_default_package(Storage* storage) {
         if(storage_file_exists(storage, path)) continue;
 
         char text[4096];
+        const bool lg = strcmp(ac_demos[d].profile, "LG_AKB75215401") == 0;
+        const bool daikin = strcmp(ac_demos[d].profile, "DAIKIN_ARC433A73") == 0;
         const bool carrier = strcmp(ac_demos[d].profile, "CARRIER_WC_UA4NE") == 0;
         const bool panasonic = strcmp(ac_demos[d].profile, "PANASONIC_RKR") == 0;
+        const char* swing_action = lg ? "swingv+" : (panasonic ? "swing+" : "swing");
         snprintf(
             text,
             sizeof(text),
@@ -241,8 +244,8 @@ static void ensure_default_package(Storage* storage) {
             ac_demos[d].short_name,
             ac_demos[d].profile,
             (unsigned long)ac_demos[d].order,
-            carrier ? 9U : (panasonic ? 9U : 8U),
-            carrier ? "swing" : "swing",
+            carrier ? 9U : (panasonic ? 9U : (daikin ? 8U : 8U)),
+            swing_action,
             carrier ?
                 "#\nElement8Page: 1\nElement8Type: button\nElement8Id: fix\nElement8Rect: 2 2 1 1\nElement8Label: FIX\nElement8Icon: down\nElement8Tap: st:fix\n" :
             panasonic ?
