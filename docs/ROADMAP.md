@@ -7,7 +7,8 @@ Implementation status as of 2026-10-03:
 - M2 STATE_IR + LG + Daikin: SOFTWARE COMPLETE; hardware evidence TBD.
 - M3 library/persistence UX: SOFTWARE COMPLETE.
 - M4 BLE HID: SOFTWARE COMPLETE; physical pair/reconnect evidence TBD.
-- M5 hardening/release candidate: SOFTWARE COMPLETE at 0.9.0; final hardware gate remains.
+- M5 hardening/release candidate: SOFTWARE COMPLETE.
+- M6 editor/macro completion: SOFTWARE COMPLETE in 0.10.0.
 
 The code is intentionally not tagged v1.0.0 until the required physical rows in `TEST_MATRIX.md` are PASS.
 
@@ -17,12 +18,12 @@ The code is intentionally not tagged v1.0.0 until the required physical rows in 
 Element
   -> binding
   -> transport dispatcher
-     -> IR Action Engine -> parsed/raw IR
+     -> IR Action Engine -> signal / nested sequence -> parsed/raw IR
      -> STATE_IR Engine -> adapter -> full/aux IR
      -> BLE HID Transport -> media/keyboard report
 ```
 
-The UI and layout editor remain transport-agnostic. Remote packages carry transport-specific bindings; protocol bytes and BLE secrets remain outside UI/layout code.
+The UI/layout editor remains transport-agnostic. The on-device authoring layer now covers layout position/type, icon, label, page, binding, folder and IR sequence macros.
 
 ## v1.0 hardware gate
 
@@ -35,4 +36,4 @@ The UI and layout editor remain transport-agnostic. Remote packages carry transp
 7. Update test matrix and release notes.
 8. Tag `v1.0.0`.
 
-No additional feature expansion is required for the current v1 target.
+No further software feature expansion is required before the current v1 hardware gate.
