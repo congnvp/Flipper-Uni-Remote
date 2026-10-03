@@ -42,10 +42,16 @@ static void ensure_default_package(Storage* storage, bool repair) {
             "ShortName: TV\n"
             "Transport: IR\n"
             "Order: 10\n"
+            "Favourite: false\n"
+            "Folder: \n"
             "RepeatEnabled: true\n"
+            "PageCount: 1\n"
+            "IrBurst: 1\n"
             "SignalFile: signals.ir\n"
             "ActionFile: actions.ur\n"
-            "BluetoothProfile: tv_demo\n"
+            "BluetoothProfile: \n"
+            "StateAdapter: \n"
+            "StateFile: state.urs\n"
             "HardUpHold: \n"
             "HardDownHold: \n"
             "HardLeftHold: \n"
@@ -682,6 +688,10 @@ bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
 bool uni_remote_store_reload(UniRemoteStore* store) {
     if(!store || !store->storage) return false;
     scan_remotes(store);
+    if(store->count == 0) {
+        ensure_default_package(store->storage, true);
+        scan_remotes(store);
+    }
     return store->count > 0;
 }
 
