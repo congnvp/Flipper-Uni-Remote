@@ -13,6 +13,7 @@
 #define UNI_BINDING_MAX 40
 #define UNI_PATH_MAX 160
 #define UNI_BT_PROFILE_MAX 24
+#define UNI_STATE_ADAPTER_MAX 16
 #define UNI_ICON_ID_MAX 9
 
 typedef enum {
@@ -91,6 +92,9 @@ typedef struct {
     char action_path[UNI_PATH_MAX];
 
     char bluetooth_profile[UNI_BT_PROFILE_MAX];
+    char state_adapter[UNI_STATE_ADAPTER_MAX];
+    char state_file[64];
+    char state_path[UNI_PATH_MAX];
     char hard_bindings[UniHardCount][UNI_BINDING_MAX];
 
     UniElement* elements;
