@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <storage/storage.h>
 
 typedef struct UniIrTransport UniIrTransport;
@@ -11,4 +12,5 @@ bool uni_ir_transport_send(
     UniIrTransport* transport,
     const char* signal_file,
     const char* signal_name,
-    bool repeat);
+    bool repeat,
+    uint8_t burst_count);
