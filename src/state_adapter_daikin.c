@@ -4,6 +4,7 @@
 #include <furi_hal_rtc.h>
 #include <infrared/worker/infrared_transmit.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #define DAIKIN_IR_FREQUENCY 38000U
