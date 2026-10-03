@@ -19,6 +19,8 @@ The runtime rollback point remains v0.4.3 commit `9eb46426953bfa993831caf0c5a662
 
 M0 (baseline freeze and durable handoff) is complete. The repository is now the source of truth for project state and next actions.
 
+PR #10 implements the Sony validation slice on branch `feat/m1-multipage-sony`. GitHub Actions run #165 passed version check, official uFBT build, artifact upload and lint.
+
 ## Working in v0.4.3
 
 - SD-card remote packages under Apps Data.
@@ -54,15 +56,19 @@ M0 (baseline freeze and durable handoff) is complete. The repository is now the 
 
 **M1.1 - Real stateless IR validation: Sony RM-PJ8**
 
-1. Import or recreate a portable Sony RM-PJ8 remote package using the existing data-driven package format.
-2. Keep all protocol bytes in `signals.ir`.
-3. Bind UI elements only through `sig:` / `act:`.
-4. Validate parsed/raw send behavior, repeat policy, navigation and reload.
-5. Run `python3 tools/check_version.py`, `ufbt` and `ufbt lint`.
-6. Record CI result in this file.
-7. Hardware test on a physical Flipper + Sony projector is required before marking TX as hardware-passed.
+Completed in PR #10:
+1. Portable Sony RM-PJ8 package added with all 22 captured SIRC15/SIRC20 commands.
+2. Generic multi-page support added without increasing `UNI_MAX_ELEMENTS`; older one-page packages still default to page 0.
+3. Sony layout uses 3 pages / 16 UI elements for a sparse layout.
+4. `IrBurst: 3` preserves the standalone Sony FAP's three-frame SIRC press behavior.
+5. CI run #165 passed version check, uFBT build, artifact upload and lint.
 
-After Sony passes, repeat the same process for the Optoma projector before touching `STATE_IR`.
+Next:
+1. Install the PR #10 artifact on a physical Flipper Zero.
+2. Copy the bundled `sony_rm_pj8` profile into `/ext/apps_data/flipper_uni_remote/remotes/`.
+3. Confirm package load, 3-page navigation, D-pad capture/release, and all Sony IR commands against the projector.
+4. Record the hardware result in `TEST_MATRIX.md`.
+5. Only after Sony hardware passes, start M1.2 with the Optoma projector.
 
 ## Do not do next
 
