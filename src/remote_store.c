@@ -186,6 +186,13 @@ static bool ff_read_rect(FlipperFormat* ff, const char* key, UniElement* element
     return true;
 }
 
+static bool safe_package_filename(const char* value) {
+    if(!value || !value[0]) return false;
+    if(strcmp(value, ".") == 0 || strcmp(value, "..") == 0) return false;
+    return strchr(value, '/') == NULL && strchr(value, '\\') == NULL &&
+           strchr(value, '\n') == NULL && strchr(value, '\r') == NULL;
+}
+
 static bool parse_transport(const char* text, UniTransport* transport) {
     if(strcmp(text, "IR") == 0) {
         *transport = UniTransportInfrared;
@@ -271,6 +278,28 @@ static bool load_element(FlipperFormat* ff, uint32_t index, UniElement* element)
     return true;
 }
 
+static bool loaded_layout_valid(const UniElement* elements, size_t count) {
+    if(!elements && count) return false;
+
+    for(size_t i = 0; i < count; i++) {
+        if(!elements[i].id[0]) return false;
+
+        for(size_t j = i + 1; j < count; j++) {
+            if(elements[i].page != elements[j].page) continue;
+
+            for(uint8_t y = 0; y < 6; y++) {
+                for(uint8_t x = 0; x < 3; x++) {
+                    if(uni_element_occupies_cell(&elements[i], x, y) &&
+                       uni_element_occupies_cell(&elements[j], x, y)) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
 static bool load_remote(Storage* storage, const char* folder, UniRemote* remote) {
     char config_path[UNI_PATH_MAX];
     snprintf(config_path, sizeof(config_path), UNI_REMOTES_DIR "/%s/remote.ur", folder);
@@ -323,6 +352,10 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         remote->ir_burst = (uint8_t)ir_burst;
         ff_read_string(ff, "SignalFile", remote->signal_file, sizeof(remote->signal_file), false);
         ff_read_string(ff, "ActionFile", remote->action_file, sizeof(remote->action_file), false);
+        if(!safe_package_filename(remote->signal_file) ||
+           !safe_package_filename(remote->action_file)) {
+            break;
+        }
         ff_read_string(
             ff,
             "BluetoothProfile",
@@ -341,8 +374,10 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
             remote->state_file,
             sizeof(remote->state_file),
             false);
+        if(!safe_package_filename(remote->state_file)) break;
 
         if(remote->transport == UniTransportStatefulIr && !remote->state_adapter[0]) break;
+        if(remote->transport == UniTransportBluetoothHid && !remote->bluetooth_profile[0]) break;
 
         ff_read_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold], UNI_BINDING_MAX, false);
         ff_read_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold], UNI_BINDING_MAX, false);
@@ -586,6 +621,7 @@ bool uni_remote_store_load_details(UniRemoteStore* store, size_t remote_index) {
             if(!load_element(ff, i, &elements[i])) goto done_details;
             if(elements[i].page >= remote->page_count) goto done_details;
         }
+        if(!loaded_layout_valid(elements, element_count)) goto done_details;
 
         remote->elements = elements;
         remote->element_count = element_count;
