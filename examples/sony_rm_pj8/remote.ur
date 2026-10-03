@@ -5,6 +5,8 @@ Name: Sony RM-PJ8
 ShortName: PJ8
 Transport: IR
 Order: 20
+Favourite: false
+Folder: PROJECTOR
 RepeatEnabled: false
 PageCount: 3
 IrBurst: 3
