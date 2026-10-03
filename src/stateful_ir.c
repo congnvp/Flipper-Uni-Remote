@@ -428,9 +428,21 @@ static bool mutate_common(const UniRemote* r, UniAcState* s, const char* action)
     if(strcmp(action,"fan+")==0){s->fan=wrap_u8((int)s->fan+1,6);return true;}
     if(strcmp(action,"fan-")==0){s->fan=wrap_u8((int)s->fan-1,6);return true;}
     if(strcmp(action,"swing")==0){s->swing_v=s->swing_v?0:1;return true;}
-    if(strcmp(action,"eco")==0){s->eco=!s->eco;if(s->eco)s->turbo=false;return true;}
+    if(strcmp(action,"swing+")==0){
+        const uint8_t count =
+            strcmp(r->state_profile,"PANASONIC_RKR")==0 ? 6U : 2U;
+        s->swing_v=wrap_u8((int)s->swing_v+1,count);
+        return true;
+    }
+    if(strcmp(action,"eco")==0){
+        if(strcmp(r->state_profile,"DAIKIN_ARC433A73")==0) return false;
+        s->eco=!s->eco;if(s->eco)s->turbo=false;return true;
+    }
     if(strcmp(action,"turbo")==0){s->turbo=!s->turbo;if(s->turbo)s->eco=false;return true;}
-    if(strcmp(action,"nanoe")==0){s->nanoe=!s->nanoe;return true;}
+    if(strcmp(action,"nanoe")==0){
+        if(strcmp(r->state_profile,"PANASONIC_RKR")!=0) return false;
+        s->nanoe=!s->nanoe;return true;
+    }
     return false;
 }
 
