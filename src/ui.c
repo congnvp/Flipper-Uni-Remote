@@ -672,7 +672,9 @@ static void draw_action_edit(Canvas* canvas,const UniUiState* state) {
             char value[10]={0};
             const char* step=action->steps[i];
             if(strncmp(step,"sig:",4)==0) step+=4;
-            snprintf(label,sizeof(label),"%lu:%.8s",(unsigned long)(i+1),step);
+            label[0]=(char)('1'+i);
+            label[1]=':';
+            snprintf(label+2,sizeof(label)-2,"%.10s",step);
             snprintf(value,sizeof(value),"%lu",(unsigned long)action->delays_ms[i]);
             draw_menu_row(canvas,24+(int16_t)row*19,label,value,i==state->menu_index);
         } else {
