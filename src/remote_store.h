@@ -53,6 +53,16 @@ bool uni_remote_store_set_folder(
     UniRemoteStore* store,
     size_t remote_index,
     const char* folder);
+bool uni_remote_store_set_label(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    const char* label);
+bool uni_remote_store_set_element_page(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    uint8_t page_index);
 bool uni_remote_store_move_element(
     UniRemoteStore* store,
     size_t remote_index,
