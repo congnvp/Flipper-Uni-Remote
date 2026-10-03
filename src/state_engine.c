@@ -1,6 +1,8 @@
 #include "state_engine.h"
 #include "state_adapter.h"
 
+#include <furi.h>
+
 #include <flipper_format/flipper_format.h>
 #include <stdio.h>
 #include <string.h>
