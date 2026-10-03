@@ -1,0 +1,134 @@
+Filetype: IR signals file
+Version: 1
+#
+name: Power
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 15 00 00 00
+#
+name: Input
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 57 00 00 00
+#
+name: Apa
+type: parsed
+protocol: SIRC20
+address: 5A 05 00 00
+command: 60 00 00 00
+#
+name: Eco_mode
+type: parsed
+protocol: SIRC20
+address: FA 04 00 00
+command: 11 00 00 00
+#
+name: Menu
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 29 00 00 00
+#
+name: Reset
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 7B 00 00 00
+#
+name: Up
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 35 00 00 00
+#
+name: Down
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 36 00 00 00
+#
+name: Left
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 34 00 00 00
+#
+name: Right
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 33 00 00 00
+#
+name: Enter
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 5A 00 00 00
+#
+name: Return
+type: parsed
+protocol: SIRC20
+address: FA 04 00 00
+command: 6F 00 00 00
+#
+name: Aspect
+type: parsed
+protocol: SIRC20
+address: 5A 05 00 00
+command: 6E 00 00 00
+#
+name: Keystone
+type: parsed
+protocol: SIRC20
+address: 5A 05 00 00
+command: 3A 00 00 00
+#
+name: Pattern
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 7E 00 00 00
+#
+name: D_zoom_up
+type: parsed
+protocol: SIRC20
+address: 5A 05 00 00
+command: 6A 00 00 00
+#
+name: D_zoom_down
+type: parsed
+protocol: SIRC20
+address: 5A 05 00 00
+command: 6B 00 00 00
+#
+name: Vol_up
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 12 00 00 00
+#
+name: Vol_dn
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 13 00 00 00
+#
+name: Freeze
+type: parsed
+protocol: SIRC20
+address: 5A 05 00 00
+command: 67 00 00 00
+#
+name: Blank
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 24 00 00 00
+#
+name: Muting
+type: parsed
+protocol: SIRC15
+address: 54 00 00 00
+command: 14 00 00 00
