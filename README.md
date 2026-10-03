@@ -1,173 +1,101 @@
 # Flipper Uni Remote
 
-A data-driven universal-remote FAP for Flipper Zero. Remote layout, signal bindings, icon IDs and action sequences live in editable text files on the SD card, while the engine stays transport-agnostic.
+Development rewrite of the Flipper Zero universal-remote FAP.
 
-Current development baseline: **v0.4.3**.
+Current baseline: **v0.1.0 DEV**.
 
-## Runtime model
+This branch intentionally starts from the UI/UX layer before the new runtime core is added. The FAP currently provides an interactive prototype for validating navigation, the 3×6 portrait grid, Main Screen categories, Settings, Remote Manager, per-remote management, layout/control mapping flows, and IR-file import flows.
 
-```text
-Physical key
-  -> system-reserved keys
-  -> focus / captured element
-  -> binding (sig: / act:)
-  -> Action Engine
-  -> IR / future BLE / future stateful IR
-```
-
-A remote package lives at:
+## UI model
 
 ```text
-/ext/apps_data/flipper_uni_remote/remotes/<remote-id>/
-├── remote.ur
-├── signals.ir
-├── actions.ur
-└── state.urs        # reserved for stateful devices
+MAIN SCREEN
+├── FAVOURITE
+├── user folders...
+├── UNCATEGORIZED
+└── SETTINGS
+    ├── REMOTE MANAGER
+    │   └── <remote>
+    │       ├── GENERAL
+    │       ├── LAYOUT
+    │       ├── CONTROLS
+    │       ├── IR FILES
+    │       ├── DUPLICATE
+    │       └── DELETE
+    ├── FOLDER MANAGER
+    ├── APP SETTINGS
+    ├── DATA
+    └── ABOUT
 ```
 
-## v0.4 features
-
-- Multiple remote packages loaded from SD.
-- Standard Flipper `.ir` files, parsed or raw.
-- Single-signal binding: `sig:<signal-name>`.
-- Sequence binding: `act:<action-id>`.
-- Sequence steps support per-step delay.
-- On-device Layout Editor with Move, Add, Replace, Remove and Template.
-- Element library: button 1×1/1×2, H-step, V-step, D-pad, Status, Screen 3×2/3×3.
-- Layout templates: TV Basic, TV D-pad, Media and AC Basic.
-- Icon library with short stable IDs such as `pwr`, `mut`, `play`, `home`, `fan`, `cool`, `hdmi`.
-- On-device Map editor: Signal / Sequence / Clear.
-- Remote hard-key HOLD mapping uses the same Signal/Sequence picker.
-- D-pad NORMAL layer plus HOLD actions/icons.
-- Double OK toggles D-pad ALT layer. In ALT, a short direction press executes its HOLD binding.
-- Short Back exits D-pad capture and restores the previous focus.
-- Long Back is always a system escape and can never be remapped.
-- Global and per-remote settings remain persisted in Apps Data.
-
-## D-pad behavior
-
-Normal layer:
+Main Screen uses a vertical text-only remote list. LEFT/RIGHT switches pages in a loop:
 
 ```text
-UP/DOWN/LEFT/RIGHT  -> normal bindings
-hold direction      -> *_hold binding, if configured
-OK                   -> delayed up to 240 ms for double-tap detection
-double OK            -> toggle ALT
+FAVOURITE -> user folders -> UNCATEGORIZED -> FAVOURITE
 ```
 
-ALT layer displays the hold icons and maps a short direction press to the corresponding hold action. Double OK again returns to NORMAL.
+Runtime remote screens use the fixed logical **3 columns × 6 rows** grid.
 
-If a direction has a separate hold binding, the normal action is delayed until a short press is confirmed so a long press does not send both actions.
+## DEV build
 
-## Editing on Flipper
-
-Short Back outside captured D-pad opens Menu.
+Development branch:
 
 ```text
-MENU
-├── GLOBAL
-├── REMOTE
-├── LAYOUT
-├── RELOAD
-└── BACK
+dev/ui-v0.1.0
 ```
 
-Layout Editor:
+Development release tag:
 
-- OK: Select ↔ Move.
-- Short Back while not moving: Layout Tools.
-- Layout Tools: Add / Remove / Map / Icon / Template / Done.
-- Map: choose binding field, then Signal / Sequence / Clear.
-- Icon: choose the icon field then an ID from the icon library.
+```text
+dev-v0.1.0
+```
 
-Remote Settings includes KEYMAP for HOLD shortcuts. Directional hard-key HOLD mappings only apply when a focused element has not captured that direction.
+Every push to a `dev/**` branch is built with official uFBT. The FAP is available in two places:
 
-## Build
+1. GitHub Actions artifact named `flipper-uni-remote-dev-v0.1.0-...`.
+2. GitHub prerelease `dev-v0.1.0`, whose FAP asset is replaced by the newest successful dev build.
+
+The on-device About screen identifies the build as `V0.1.0 DEV`.
+
+## Scope of v0.1.0 DEV
+
+Implemented for UI testing:
+
+- Main Screen with FAVOURITE first.
+- User-folder examples and system UNCATEGORIZED page.
+- Circular LEFT/RIGHT page navigation.
+- Vertical text-only remote list.
+- SETTINGS entry on Main Screen.
+- Remote Manager and per-remote management flow.
+- Separate Layout, Controls, and IR Files management screens.
+- 3×6 grid runtime previews for TV, AC, Projector, and Generic remotes.
+- Mapping-flow mock UI.
+- IR import-flow mock UI with FLIPPER IR and BROWSE STORAGE choices.
+- English-only system UI.
+- Long Back remains system escape.
+- Physical portrait direction mapping retained from the previously hardware-verified build.
+
+Not implemented yet:
+
+- IR transmission.
+- Persistent storage.
+- Real Flipper file browser.
+- Copying `.ir` files.
+- Text input / rename.
+- Layout persistence.
+- Real control mapping.
+- Folder persistence.
+- Runtime/editor RAM-domain implementation.
+
+These are intentionally deferred until the UI/UX is approved.
+
+## Build locally
 
 ```bash
-python3 -m pip install --upgrade ufbt
-ufbt update --channel release
+python3 tools/check_version.py
 ufbt
 ```
-
-With Flipper attached:
-
-```bash
-ufbt launch
-```
-
-## Profile editing
-
-A single signal:
-
-```text
-Element4Tap: sig:Power
-```
-
-A named sequence:
-
-```text
-Element4Hold: act:movie
-```
-
-A button icon:
-
-```text
-Element4Icon: pwr
-```
-
-D-pad hold layer:
-
-```text
-Element5UpHold: sig:VolUp
-Element5UpHoldIcon: volp
-Element5LeftHold: sig:Rewind
-Element5LeftHoldIcon: rew
-Element5AltSticky: false
-```
-
-See:
-
-- `docs/REMOTE_PACKAGE.md`
-- `docs/ACTIONS.md`
-- `docs/ICON_LIBRARY.md`
-- `docs/UI_SYSTEM.md`
-
-## Versioning
-
-Semantic Versioning: `vMAJOR.MINOR.PATCH`.
-
-`VERSION` is the source of truth. `application.fam` mirrors MAJOR.MINOR.
-
-## Invariants
-
-- Long Back is never remappable.
-- Native LCD is 128×64; logical UI is 64×128 portrait.
-- Layout files store 3×6 grid geometry, not pixel coordinates.
-- IR protocol bytes stay in `.ir` files, not engine/UI code.
-- Bluetooth bond secrets never belong in portable remote packages.
-- Stateful IR local state must not be presented as confirmed device state.
 
 ## License
 
 MIT.
-
-
-## v0.4.2 layout behavior
-
-- RELOAD clears stale UI/controller pointers before rescanning, then reloads the active remote only when needed.
-- Layout Editor navigation includes status and screen elements, not only runtime-focusable controls.
-- Move uses geometric reflow: different sizes such as 1×1 and 1×2 can exchange regions when a valid placement exists.
-- ADD first uses a free rectangle. If no rectangle exists, large presets use their preferred region and replace overlapping elements; adding a 3×3 D-pad therefore does not require manually deleting surrounding 1×1 buttons.
-- REPLACE changes the selected element to another preset. Same-type replacement preserves mappings/labels while allowing size changes such as screen 3×2 ↔ 3×3.
-
-
-## v0.4.3 cell occupancy
-
-Layout validity is now based on logical occupied cells rather than bounding rectangles.
-
-- Rectangular elements occupy every cell inside their Rect.
-- D-pad `d33` keeps a 3×3 bounding Rect for rendering, but occupies only the five cross cells.
-- The four D-pad corner cells are therefore true free slots for `btn11`.
-- A `1×2` or `2×1` element is also allowed to overlap the D-pad bounding Rect when every cell it actually needs is free.
-- Runtime focus and Layout Editor navigation use the same occupied-cell geometry, so controls placed in D-pad corners remain reachable.

@@ -1,10 +1,15 @@
-name: FAP build
+name: Development FAP build
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "dev/**"
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -12,6 +17,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "value=$(cat VERSION)" >> "$GITHUB_OUTPUT"
 
       - name: Check version files
         run: python3 tools/check_version.py
@@ -22,12 +32,44 @@ jobs:
         with:
           sdk-channel: release
 
-      - name: Upload FAP artifact
+      - name: Upload DEV FAP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: flipper-uni-remote-${{ steps.build.outputs.suffix }}
+          name: flipper-uni-remote-dev-v${{ steps.version.outputs.value }}-${{ steps.build.outputs.suffix }}
           path: ${{ steps.build.outputs.fap-artifacts }}
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish DEV prerelease
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/dev/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="dev-v$(cat VERSION)"
+          mapfile -t faps < <(find dist -type f -name '*.fap' -print)
+          if (( ${#faps[@]} == 0 )); then
+            echo "No .fap files found in dist/"
+            exit 1
+          fi
+
+          git tag -f "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag" --force
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${faps[@]}" --clobber
+            gh release edit "$tag" \
+              --title "Flipper Uni Remote DEV v$(cat VERSION)" \
+              --prerelease \
+              --notes "Development UI/UX build from branch $GITHUB_REF_NAME. Not a stable release."
+          else
+            gh release create "$tag" "${faps[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "Flipper Uni Remote DEV v$(cat VERSION)" \
+              --prerelease \
+              --notes "Development UI/UX build from branch $GITHUB_REF_NAME. Not a stable release."
+          fi
 
       - name: Lint C sources (advisory)
         continue-on-error: true
