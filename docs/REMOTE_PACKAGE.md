@@ -1,16 +1,16 @@
 # Remote package format
 
-Each remote is a portable directory:
+Each portable remote is a directory under:
 
 ```text
 /ext/apps_data/flipper_uni_remote/remotes/<remote-id>/
 ├── remote.ur
 ├── signals.ir
 ├── actions.ur
-└── state.urs
+└── state.urs        # created/used by STATE_IR remotes
 ```
 
-`state.urs` is reserved for stateful-device drivers. Bluetooth bond keys are never part of a portable package.
+Bluetooth bond keys are app-private and are never part of a portable remote package.
 
 ## remote.ur
 
@@ -21,7 +21,7 @@ Filetype: Flipper Uni Remote
 Version: 1
 ```
 
-Top-level fields:
+Common top-level fields:
 
 ```text
 Id: living_tv
@@ -29,12 +29,16 @@ Name: Living TV
 ShortName: TV
 Transport: IR
 Order: 10
+Favourite: false
+Folder: LIVING
 RepeatEnabled: true
 PageCount: 1
 IrBurst: 1
 SignalFile: signals.ir
 ActionFile: actions.ur
-BluetoothProfile: living_tv
+BluetoothProfile:
+StateAdapter:
+StateFile: state.urs
 
 HardUpHold:
 HardDownHold:
@@ -45,20 +49,56 @@ HardOkHold:
 ElementCount: 6
 ```
 
-Hard-key bindings use the same binding syntax as elements. Long Back is not represented because it is permanently reserved by the engine.
+`Favourite` is independent of `Folder`. A remote can appear in both its folder and FAVOURITE. An empty `Folder` places it in UNCATEGORIZED.
 
-## Binding syntax
+## Transports and bindings
+
+### IR
 
 ```text
-sig:Power
-act:movie
+Transport: IR
+Element0Tap: sig:Power
+Element0Hold: act:movie
 ```
 
-For backwards compatibility a plain value such as `Power` is treated as a signal name.
+A plain signal name remains supported for older packages. `sig:` resolves one entry in `SignalFile`; `act:` resolves one alias/sequence in `ActionFile`.
 
-- `sig:` calls one signal from `SignalFile`.
-- `act:` resolves a named action from `ActionFile`.
-- v0.4 named sequences do not repeat when the OS emits a repeat event.
+`IrBurst` controls the number of initial frames for parsed IR signals. Default is 1. Sony RM-PJ8 uses 3. Raw signals are transmitted once because their timing body may already contain repetition.
+
+### STATE_IR
+
+```text
+Transport: STATE_IR
+StateAdapter: LG_AC
+StateFile: state.urs
+Element2Left: state:temp:-
+Element2Right: state:temp:+
+Element4Tap: state:power:toggle
+```
+
+Implemented adapters:
+
+- `LG_AC`
+- `DAIKIN_ARC433A73`
+
+The binding mutates local remembered state, the adapter normalizes/validates it, then emits the vendor frame or auxiliary command. No fake per-button AC signal files are required.
+
+`state.urs` is LOCAL remembered state only; it is not confirmation from the appliance.
+
+### Bluetooth HID
+
+```text
+Transport: BT
+BluetoothProfile: UniMedia
+Element2Left: bt:media:prev
+Element2Right: bt:media:next
+Element6Up: bt:key:up
+Element6Ok: bt:key:enter
+```
+
+Supported `bt:media:` actions include play/pause, previous/next, stop, mute, volume, Home, Back and Forward. Supported `bt:key:` actions include arrows, Enter, Escape, Space, Tab and Page Up/Down.
+
+Each `BluetoothProfile` gets stable app-private bond storage and a stable profile-derived BLE identity. Leaving the BT remote restores the Flipper default Bluetooth profile.
 
 ## Elements
 
@@ -72,7 +112,6 @@ Element0Rect: 1 4 1 2
 Element0Label: PWR
 Element0Icon: pwr
 Element0Tap: sig:Power
-Element0Hold: act:power_menu
 ```
 
 Supported types:
@@ -86,33 +125,17 @@ Supported types:
 
 `Rect: X Y W H` uses the logical 3×6 grid.
 
-### Multiple pages
+## Multiple pages
 
-`PageCount` is optional and defaults to `1` for older packages. Valid values are `1..16`.
+`PageCount` defaults to 1 and accepts 1..16. Each element may declare `ElementNPage`; omitted values default to page 0.
 
-Each element may declare:
+Elements on different pages may reuse the same cells. On one page, collision checking uses occupied cells rather than bounding rectangles. The 3×3 D-pad occupies its five cross cells, so its four corner cells remain usable.
 
-```text
-Element0Page: 0
-```
+Runtime navigation stays spatial inside the active page. If LEFT/RIGHT has no further focus target, the engine wraps to the previous/next non-empty page. D-pad and stepper directions retain their control semantics while captured.
 
-The field is optional and defaults to page `0`. Elements on different pages may reuse the same grid cells.
+A compact page indicator is drawn at the bottom for multi-page remotes.
 
-Runtime navigation stays spatial within the active page. When focus is already at the left or right edge and another LEFT/RIGHT navigation cannot find an element, the engine wraps to the previous/next non-empty page and focuses its first control. D-pad/H-step/V-step directions keep their normal control semantics while captured.
-
-For multi-page layouts, a compact page indicator is drawn near the bottom edge. Keep that small area visually clear when possible.
-
-### Parsed IR burst count
-
-`IrBurst` is optional and defaults to `1`. It controls how many initial parsed IR frames are sent for one non-repeat activation. This is useful for protocols/devices such as Sony SIRC remotes that expect a short burst.
-
-```text
-IrBurst: 3
-```
-
-OS-generated hold/repeat events still send a single repeat frame. Raw signals are transmitted once because their timing payload may already include repetition.
-
-### Button
+## Button
 
 ```text
 Element4Icon: pwr
@@ -121,27 +144,19 @@ Element4Tap: sig:Power
 Element4Hold: act:power_menu
 ```
 
-### H-step
-
-Its left/right triangles are fixed and do not need icon IDs.
+## H-step / V-step
 
 ```text
 Element2Left: sig:ChDown
 Element2Right: sig:ChUp
-```
 
-### V-step
-
-Its up/down triangles are fixed.
-
-```text
 Element3Up: sig:VolUp
 Element3Down: sig:VolDown
 ```
 
-### D-pad
+Transport-specific bindings can be used in the same fields.
 
-Normal layer:
+## D-pad
 
 ```text
 Element5Up: sig:Up
@@ -149,48 +164,43 @@ Element5Down: sig:Down
 Element5Left: sig:Left
 Element5Right: sig:Right
 Element5Ok: sig:OK
-```
 
-Hold/ALT layer:
-
-```text
 Element5UpHold: sig:VolUp
 Element5DownHold: sig:VolDown
 Element5LeftHold: sig:Rewind
 Element5RightHold: sig:FastForward
 Element5OkHold: sig:Home
 
-Element5UpHoldIcon: volp
-Element5DownHoldIcon: volm
-Element5LeftHoldIcon: rew
-Element5RightHoldIcon: ffwd
-Element5OkHoldIcon: home
-
 Element5AltSticky: false
 ```
 
-Double OK toggles ALT. In ALT, a short direction press runs the matching HOLD binding.
+Double OK toggles ALT. Short Back releases D-pad capture. Long Back is a system action and cannot be remapped.
 
-Short Back releases D-pad capture and restores the previous focus. Unless `AltSticky: true`, leaving D-pad resets ALT to NORMAL.
+## On-device editor
 
-Long Back always performs system escape.
+The Layout Editor rewrites `remote.ur` from the current model. Move/Add/Replace/Remove/Icon remain transport-neutral.
 
-## Runtime editing
+Map is transport-aware:
 
-The v0.4 on-device editor rewrites `remote.ur` from the current data model. This means fields managed by the FAP remain internally consistent after Add/Remove/Move/Map/Icon/Template operations.
+- IR: Signal / Sequence / Clear.
+- STATE_IR: adapter-valid Action / Clear.
+- BT: Bluetooth Action / Clear.
 
-Files may still be edited directly on a PC or phone. After external changes use `MENU -> RELOAD`.
+This prevents the on-device editor from creating a binding that the selected transport cannot execute.
 
-## signals.ir
+## Validation
 
-This remains the official Flipper IR signal format. Parsed and raw entries are supported.
+CI runs `tools/check_profiles.py` before compilation. It checks:
 
-Signal names used by the on-device picker are limited to 31 characters.
+- transport and adapter names;
+- file-name/path traversal constraints;
+- page/element bounds;
+- occupied-cell collisions;
+- signal/action references;
+- stateful and Bluetooth action names;
+- icon IDs;
+- action sequence/alias signal references.
 
-## actions.ur
+External edits can be loaded with `MENU -> RELOAD`.
 
-See `ACTIONS.md`.
-
-## Icons
-
-See `ICON_LIBRARY.md`.
+See also `ACTIONS.md`, `ICON_LIBRARY.md`, and `AC_PROTOCOLS.md`.
