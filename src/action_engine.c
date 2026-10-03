@@ -366,7 +366,7 @@ size_t uni_action_sequence_count(const UniActionCatalog* catalog) {
 }
 
 size_t uni_action_sequence_index(const UniActionCatalog* catalog, size_t position) {
-    if(!catalog) return catalog ? catalog->count : 0;
+    if(!catalog) return 0;
     size_t current = 0;
     for(size_t i = 0; i < catalog->count; i++) {
         if(catalog->actions[i].type != UniActionSequence) continue;
