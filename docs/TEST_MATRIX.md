@@ -14,7 +14,7 @@ A green build is not hardware evidence.
 | Daikin ARC433A73 | PASS | PASS | TBD | TBD | 35-byte/584-timing STATE_IR adapter compiled; physical AC confirmation pending. |
 | Bluetooth Media | PASS | PASS | TBD | TBD | BLE HID links through `ble_profile`; real pair/reconnect pending. |
 
-Software integration evidence: PR #11. GitHub Actions run #209 passed version consistency, all six bundled profile validations, release-channel uFBT build, full-profile artifact upload and lint for the 0.9.0 candidate.
+Software integration evidence: PR #11. GitHub Actions run #221 passed version consistency, all six bundled profile validations, malformed-profile regression tests, release-channel uFBT build, full-profile artifact upload and lint after the final runtime hardening audit.
 
 ## Required software checks
 
@@ -22,6 +22,7 @@ Software integration evidence: PR #11. GitHub Actions run #209 passed version co
 | --- | --- |
 | `python3 tools/check_version.py` | Yes |
 | `python3 tools/check_profiles.py` | Yes |
+| `python3 tools/test_profile_validator.py` | Yes |
 | official release-channel `ufbt` | Yes |
 | `ufbt lint` | Yes |
 | artifact contains FAP + bundled profiles | Yes |
