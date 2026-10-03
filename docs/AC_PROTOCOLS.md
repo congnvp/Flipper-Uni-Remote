@@ -1,6 +1,6 @@
 # Stateful IR / AC Protocol Contract
 
-`STATE_IR` is implemented in the 0.9 integration candidate.
+`STATE_IR` is implemented in the 0.10 software candidate.
 
 ## Runtime flow
 
