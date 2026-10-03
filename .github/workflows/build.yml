@@ -26,7 +26,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: flipper-uni-remote-${{ steps.build.outputs.suffix }}
-          path: ${{ steps.build.outputs.fap-artifacts }}
+          path: |
+            ${{ steps.build.outputs.fap-artifacts }}
+            examples/sony_rm_pj8/**
           if-no-files-found: error
 
       - name: Lint C sources (advisory)
