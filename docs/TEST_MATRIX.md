@@ -13,8 +13,9 @@ A green build is not hardware evidence.
 | LG AC | PASS | PASS | TBD | TBD | STATE_IR encoder/state persistence compiled; physical AC confirmation pending. |
 | Daikin ARC433A73 | PASS | PASS | TBD | TBD | 35-byte/584-timing STATE_IR adapter compiled; physical AC confirmation pending. |
 | Bluetooth Media | PASS | PASS | TBD | TBD | BLE HID links through `ble_profile`; real pair/reconnect pending. |
+| Editor + nested macros | PASS | PASS | N/A | N/A | Label/Page/Folder editing, nested macro validation/editor and lazy Home path compile in CI; no target-device claim. |
 
-Software integration evidence: PR #11. GitHub Actions run #221 passed version consistency, all six bundled profile validations, malformed-profile regression tests, release-channel uFBT build, full-profile artifact upload and lint after the final runtime hardening audit.
+Software integration evidence is tracked on PR #11. The 0.10 candidate adds nested-macro regression cases and a bundled nested macro; the final run after the 0.10 version/docs commits must pass before release packaging is considered current.
 
 ## Required software checks
 
