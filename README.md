@@ -6,7 +6,7 @@ Universal-remote FAP for Flipper Zero with data-driven layouts and three executa
 - stateful IR: local device state + vendor adapter + full-frame/auxiliary IR;
 - Bluetooth HID: media and keyboard/navigation controls.
 
-Current software candidate: **v0.9.0**. The v1.0.0 tag is intentionally held until the physical regression matrix passes.
+Current software candidate: **v0.10.0**. The v1.0.0 tag is intentionally held until the physical regression matrix passes.
 
 ## Architecture
 
@@ -67,7 +67,11 @@ Layout Editor supports:
 - Remove;
 - Map;
 - Icon;
+- Label;
+- Page / new page;
 - Template.
+
+Remote Settings also includes an on-device text editor for Folder names and an IR Macro Editor for creating and editing nested sequences.
 
 Map is transport-aware:
 
@@ -133,7 +137,7 @@ See `docs/INSTALL.md`.
 
 ## Validation boundary
 
-The 0.9.0 codebase and bundled profiles are intended to be software-complete for the current v1 scope. A successful build does not prove physical IR acceptance or BLE pairing/reconnect.
+The 0.10.0 codebase and bundled profiles are intended to be software-complete for the current v1 scope, including the additional on-device editing and nested-macro work. A successful build does not prove physical IR acceptance or BLE pairing/reconnect.
 
 Required real-device evidence is tracked in `docs/TEST_MATRIX.md`.
 
