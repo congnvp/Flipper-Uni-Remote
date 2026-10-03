@@ -31,7 +31,7 @@ jobs:
           name: flipper-uni-remote-${{ steps.build.outputs.suffix }}
           path: |
             ${{ steps.build.outputs.fap-artifacts }}
-            examples/sony_rm_pj8/**
+            examples/**
           if-no-files-found: error
 
       - name: Lint C sources (advisory)
