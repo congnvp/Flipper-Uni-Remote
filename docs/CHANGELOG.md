@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.10.0] - 2026-10-03
+
+Completion pass for the remaining software-side authoring and interaction work. Physical target validation is still required before v1.0.0.
+
+### Added
+
+- Borderless text-only Home rows with full-row selection inversion.
+- Timed second inversion for successful control press feedback.
+- On-device Label editor.
+- On-device Page editor with new-page creation and trailing-empty-page trimming.
+- On-device Folder text entry.
+- On-device IR Macro Editor: create, rename, add/replace/remove steps, delay editing and safe deletion.
+- Nested sequence steps through `act:<id>`.
+- Runtime and static cycle detection for nested macros.
+- 60-second per-step delay ceiling and action-ID character validation.
+- Bundled nested-macro regression profile.
+
+### Changed
+
+- Returning from editor flows to Home unloads the active layout again, preserving metadata-only Home memory behavior.
+- Runtime action loading validates the complete externally edited action graph before accepting it.
+- Sequence steps accept plain signals, `sig:<name>` and `act:<id>`.
+
+### Validation
+
+- Final 0.10 CI/artifact evidence is recorded on PR #11 and in `TEST_MATRIX.md`.
+- Hardware-facing rows remain TBD until physical testing.
+
 ## [0.9.0] - 2026-10-03
 
 Software-complete release candidate for the current v1 scope. Physical target validation is still required before v1.0.0.
