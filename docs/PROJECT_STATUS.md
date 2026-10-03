@@ -6,20 +6,18 @@ Last updated: 2026-10-03
 
 - Version: `0.4.3`
 - Branch baseline: `main`
-- Commit: `9eb46426953bfa993831caf0c5a6626584f7e155`
+- Runtime rollback commit: `9eb46426953bfa993831caf0c5a6626584f7e155`
 - GitHub Actions: FAP build run #40 completed successfully on 2026-10-02.
-- Verified by CI: version check, official uFBT build, artifact upload, advisory lint.
+- Baseline-handoff PR #9 also passed version check, official uFBT build, artifact upload and advisory lint.
 - Hardware verification is separate from CI and must never be inferred from a green build.
 
-This commit is the rollback point for all work after v0.4.3.
+The runtime rollback point remains v0.4.3 commit `9eb46426953bfa993831caf0c5a6626584f7e155`.
 
 ## Current milestone
 
-**M0 - Baseline freeze and durable handoff**
+**M1.1 - Real stateless IR validation: Sony RM-PJ8**
 
-Goal: make the repository, not chat history, the source of truth before adding more transports or stateful protocols.
-
-Status: documentation/bootstrap work in progress on `chore/project-baseline-v0.4.3`.
+M0 (baseline freeze and durable handoff) is complete. The repository is now the source of truth for project state and next actions.
 
 ## Working in v0.4.3
 
