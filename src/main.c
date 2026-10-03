@@ -11,6 +11,7 @@
 #include "ui.h"
 
 #include <furi.h>
+#include <dialogs/dialogs.h>
 #include <gui/gui.h>
 #include <input/input.h>
 #include <stdbool.h>
@@ -445,6 +446,60 @@ static void handle_global(UniApp* app, const InputEvent* event, UniKey key) {
     }
 }
 
+static bool import_ir_with_browser(UniApp* app) {
+    const UniRemote* remote = selected_remote(app);
+    if(!remote || remote->transport != UniTransportInfrared) return false;
+
+    DialogsApp* dialogs = furi_record_open(RECORD_DIALOGS);
+    if(!dialogs) return false;
+
+    FuriString* path = furi_string_alloc_set(EXT_PATH("infrared"));
+    DialogsFileBrowserOptions options;
+    dialog_file_browser_set_basic_options(&options, ".ir", NULL);
+    options.base_path = EXT_PATH("infrared");
+    options.hide_dot_files = true;
+
+    const bool selected = dialog_file_browser_show(dialogs, path, path, &options);
+    bool ok = false;
+    if(selected) {
+        ok = uni_remote_store_import_ir(
+            &app->store,
+            app->ui.selected_remote,
+            furi_string_get_cstr(path));
+        if(ok) refresh_remote_pointer(app);
+    } else {
+        ok = true; /* Cancel is not an error. */
+    }
+
+    furi_string_free(path);
+    furi_record_close(RECORD_DIALOGS);
+    return ok;
+}
+
+static bool handle_remote_device_data(UniApp* app) {
+    UniRemote* remote = selected_remote_mut(app);
+    if(!remote) return false;
+
+    if(remote->transport == UniTransportInfrared) {
+        return import_ir_with_browser(app);
+    }
+
+    if(remote->transport == UniTransportBluetoothHid) {
+        const bool ok =
+            uni_bt_transport_forget_profile(app->bt, remote->bluetooth_profile);
+        refresh_status_text(app);
+        return ok;
+    }
+
+    if(remote->transport == UniTransportStatefulIr) {
+        const bool ok = uni_stateful_ir_reset_state(app->storage, remote);
+        if(ok) refresh_status_text(app);
+        return ok;
+    }
+
+    return false;
+}
+
 static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey key) {
     if(key == UniKeyBack && event->type == InputTypeShort) {
         app->ui.page = UniUiMenu;
@@ -493,6 +548,9 @@ static void handle_remote_settings(UniApp* app, const InputEvent* event, UniKey 
         }
         break;
     case 4:
+        if(key == UniKeyOk) {
+            app->ui.tx_ok = handle_remote_device_data(app);
+        }
         break;
     case 5:
         if(key == UniKeyOk) {
