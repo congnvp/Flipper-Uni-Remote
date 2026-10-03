@@ -29,12 +29,16 @@ Name: {display_name}
 ShortName: {short_name}
 Transport: IR
 Order: 100
+Favourite: false
+Folder:
 RepeatEnabled: true
 PageCount: 1
 IrBurst: 1
 SignalFile: signals.ir
 ActionFile: actions.ur
-BluetoothProfile: {remote_id}
+BluetoothProfile:
+StateAdapter:
+StateFile: state.urs
 HardUpHold:
 HardDownHold:
 HardLeftHold:
