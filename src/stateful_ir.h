@@ -37,3 +37,5 @@ bool uni_stateful_ir_load_state(
     UniAcState* out);
 
 const char* uni_stateful_ir_mode_label(UniAcMode mode);
+
+bool uni_stateful_ir_reset_state(Storage* storage, const UniRemote* remote);
