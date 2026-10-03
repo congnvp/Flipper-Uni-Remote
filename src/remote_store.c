@@ -29,11 +29,11 @@ static bool write_text_file(Storage* storage, const char* path, const char* text
     return ok;
 }
 
-static void ensure_default_package(Storage* storage) {
+static void ensure_default_package(Storage* storage, bool repair) {
     storage_common_mkdir(storage, UNI_REMOTES_DIR);
     storage_common_mkdir(storage, UNI_DEFAULT_DIR);
 
-    if(!storage_file_exists(storage, UNI_DEFAULT_REMOTE)) {
+    if(repair || !storage_file_exists(storage, UNI_DEFAULT_REMOTE)) {
         static const char remote_text[] =
             "Filetype: Flipper Uni Remote\n"
             "Version: 1\n"
@@ -42,10 +42,16 @@ static void ensure_default_package(Storage* storage) {
             "ShortName: TV\n"
             "Transport: IR\n"
             "Order: 10\n"
+            "Favourite: false\n"
+            "Folder: \n"
             "RepeatEnabled: true\n"
+            "PageCount: 1\n"
+            "IrBurst: 1\n"
             "SignalFile: signals.ir\n"
             "ActionFile: actions.ur\n"
-            "BluetoothProfile: tv_demo\n"
+            "BluetoothProfile: \n"
+            "StateAdapter: \n"
+            "StateFile: state.urs\n"
             "HardUpHold: \n"
             "HardDownHold: \n"
             "HardLeftHold: \n"
@@ -86,7 +92,7 @@ static void ensure_default_package(Storage* storage) {
         write_text_file(storage, UNI_DEFAULT_REMOTE, remote_text);
     }
 
-    if(!storage_file_exists(storage, UNI_DEFAULT_SIGNALS)) {
+    if(repair || !storage_file_exists(storage, UNI_DEFAULT_SIGNALS)) {
         static const char signal_text[] =
             "Filetype: IR signals file\n"
             "Version: 1\n"
@@ -129,7 +135,7 @@ static void ensure_default_package(Storage* storage) {
         write_text_file(storage, UNI_DEFAULT_SIGNALS, signal_text);
     }
 
-    if(!storage_file_exists(storage, UNI_DEFAULT_ACTIONS)) {
+    if(repair || !storage_file_exists(storage, UNI_DEFAULT_ACTIONS)) {
         static const char action_text[] =
             "Filetype: Flipper Uni Remote Actions\n"
             "Version: 1\n"
@@ -186,6 +192,27 @@ static bool ff_read_rect(FlipperFormat* ff, const char* key, UniElement* element
     return true;
 }
 
+static bool safe_package_filename(const char* value) {
+    if(!value || !value[0]) return false;
+    if(strcmp(value, ".") == 0 || strcmp(value, "..") == 0) return false;
+    return strchr(value, '/') == NULL && strchr(value, '\\') == NULL &&
+           strchr(value, '\n') == NULL && strchr(value, '\r') == NULL;
+}
+
+static bool safe_bluetooth_profile(const char* value) {
+    if(!value || !value[0]) return false;
+    for(size_t i = 0; value[i]; i++) {
+        const char ch = value[i];
+        const bool valid =
+            (ch >= 'a' && ch <= 'z') ||
+            (ch >= 'A' && ch <= 'Z') ||
+            (ch >= '0' && ch <= '9') ||
+            ch == '_' || ch == '-';
+        if(!valid) return false;
+    }
+    return true;
+}
+
 static bool parse_transport(const char* text, UniTransport* transport) {
     if(strcmp(text, "IR") == 0) {
         *transport = UniTransportInfrared;
@@ -238,6 +265,11 @@ static bool load_element(FlipperFormat* ff, uint32_t index, UniElement* element)
     snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
     if(!ff_read_rect(ff, key, element)) return false;
 
+    uint32_t page = 0;
+    snprintf(key, sizeof(key), "Element%luPage", (unsigned long)index);
+    if(!ff_read_u32(ff, key, &page, false) || page >= UNI_MAX_PAGES) return false;
+    element->page = (uint8_t)page;
+
     read_element_string(ff, index, "Label", element->label, sizeof(element->label));
     read_element_string(ff, index, "Icon", element->icon, sizeof(element->icon));
     read_element_string(ff, index, "HoldIcon", element->hold_icon, sizeof(element->hold_icon));
@@ -266,6 +298,28 @@ static bool load_element(FlipperFormat* ff, uint32_t index, UniElement* element)
     return true;
 }
 
+static bool loaded_layout_valid(const UniElement* elements, size_t count) {
+    if(!elements && count) return false;
+
+    for(size_t i = 0; i < count; i++) {
+        if(!elements[i].id[0]) return false;
+
+        for(size_t j = i + 1; j < count; j++) {
+            if(elements[i].page != elements[j].page) continue;
+
+            for(uint8_t y = 0; y < 6; y++) {
+                for(uint8_t x = 0; x < 3; x++) {
+                    if(uni_element_occupies_cell(&elements[i], x, y) &&
+                       uni_element_occupies_cell(&elements[j], x, y)) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
 static bool load_remote(Storage* storage, const char* folder, UniRemote* remote) {
     char config_path[UNI_PATH_MAX];
     snprintf(config_path, sizeof(config_path), UNI_REMOTES_DIR "/%s/remote.ur", folder);
@@ -279,12 +333,17 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
     uint32_t version = 0;
     char transport_text[16] = {0};
     uint32_t element_count = 0;
+    uint32_t page_count = 1;
+    uint32_t ir_burst = 1;
 
     memset(remote, 0, sizeof(UniRemote));
     remote->repeat_enabled = true;
+    remote->page_count = 1;
+    remote->ir_burst = 1;
     snprintf(remote->id, sizeof(remote->id), "%.23s", folder);
     snprintf(remote->signal_file, sizeof(remote->signal_file), "signals.ir");
     snprintf(remote->action_file, sizeof(remote->action_file), "actions.ur");
+    snprintf(remote->state_file, sizeof(remote->state_file), "state.urs");
 
     do {
         if(!flipper_format_file_open_existing(ff, config_path)) break;
@@ -300,14 +359,48 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         if(!parse_transport(transport_text, &remote->transport)) break;
         ff_read_u32(ff, "Order", &remote->order, false);
         ff_read_bool(ff, "RepeatEnabled", &remote->repeat_enabled, false);
+        ff_read_bool(ff, "Favourite", &remote->favorite, false);
+        ff_read_string(ff, "Folder", remote->folder, sizeof(remote->folder), false);
+        if(!ff_read_u32(ff, "PageCount", &page_count, false) ||
+           page_count == 0 || page_count > UNI_MAX_PAGES) {
+            break;
+        }
+        if(!ff_read_u32(ff, "IrBurst", &ir_burst, false) || ir_burst == 0 || ir_burst > 8) {
+            break;
+        }
+        remote->page_count = (uint8_t)page_count;
+        remote->ir_burst = (uint8_t)ir_burst;
         ff_read_string(ff, "SignalFile", remote->signal_file, sizeof(remote->signal_file), false);
         ff_read_string(ff, "ActionFile", remote->action_file, sizeof(remote->action_file), false);
+        if(!safe_package_filename(remote->signal_file) ||
+           !safe_package_filename(remote->action_file)) {
+            break;
+        }
         ff_read_string(
             ff,
             "BluetoothProfile",
             remote->bluetooth_profile,
             sizeof(remote->bluetooth_profile),
             false);
+        ff_read_string(
+            ff,
+            "StateAdapter",
+            remote->state_adapter,
+            sizeof(remote->state_adapter),
+            false);
+        ff_read_string(
+            ff,
+            "StateFile",
+            remote->state_file,
+            sizeof(remote->state_file),
+            false);
+        if(!safe_package_filename(remote->state_file)) break;
+
+        if(remote->transport == UniTransportStatefulIr && !remote->state_adapter[0]) break;
+        if(remote->transport == UniTransportBluetoothHid &&
+           !safe_bluetooth_profile(remote->bluetooth_profile)) {
+            break;
+        }
 
         ff_read_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold], UNI_BINDING_MAX, false);
         ff_read_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold], UNI_BINDING_MAX, false);
@@ -323,8 +416,10 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
 
         char signal_file_copy[64];
         char action_file_copy[64];
+        char state_file_copy[64];
         snprintf(signal_file_copy, sizeof(signal_file_copy), "%s", remote->signal_file);
         snprintf(action_file_copy, sizeof(action_file_copy), "%s", remote->action_file);
+        snprintf(state_file_copy, sizeof(state_file_copy), "%s", remote->state_file);
 
         snprintf(remote->config_path, sizeof(remote->config_path), "%s", config_path);
         snprintf(
@@ -339,6 +434,18 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
             UNI_REMOTES_DIR "/%s/%s",
             folder,
             action_file_copy);
+        snprintf(
+            remote->state_path,
+            sizeof(remote->state_path),
+            UNI_REMOTES_DIR "/%s/%s",
+            folder,
+            state_file_copy);
+
+        if(remote->transport == UniTransportInfrared &&
+           !storage_file_exists(storage, remote->signal_path)) {
+            break;
+        }
+
         ok = true;
     } while(false);
 
@@ -407,6 +514,9 @@ static bool write_element(FlipperFormat* ff, size_t index, const UniElement* e) 
     WRITE_STR("Id", e->id);
     snprintf(key, sizeof(key), "Element%luRect", (unsigned long)index);
     if(!flipper_format_write_uint32(ff, key, rect, 4)) return false;
+    uint32_t page = e->page;
+    snprintf(key, sizeof(key), "Element%luPage", (unsigned long)index);
+    if(!flipper_format_write_uint32(ff, key, &page, 1)) return false;
     WRITE_STR("Label", e->label);
     WRITE_STR("Icon", e->icon);
     WRITE_STR("HoldIcon", e->hold_icon);
@@ -460,9 +570,17 @@ bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
         if(!write_string(ff, "Transport", transport)) break;
         if(!flipper_format_write_uint32(ff, "Order", &remote->order, 1)) break;
         if(!flipper_format_write_bool(ff, "RepeatEnabled", &remote->repeat_enabled, 1)) break;
+        if(!flipper_format_write_bool(ff, "Favourite", &remote->favorite, 1)) break;
+        if(!write_string(ff, "Folder", remote->folder)) break;
+        uint32_t page_count = remote->page_count ? remote->page_count : 1;
+        uint32_t ir_burst = remote->ir_burst ? remote->ir_burst : 1;
+        if(!flipper_format_write_uint32(ff, "PageCount", &page_count, 1)) break;
+        if(!flipper_format_write_uint32(ff, "IrBurst", &ir_burst, 1)) break;
         if(!write_string(ff, "SignalFile", remote->signal_file)) break;
         if(!write_string(ff, "ActionFile", remote->action_file)) break;
         if(!write_string(ff, "BluetoothProfile", remote->bluetooth_profile)) break;
+        if(!write_string(ff, "StateAdapter", remote->state_adapter)) break;
+        if(!write_string(ff, "StateFile", remote->state_file)) break;
 
         if(!write_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold])) break;
         if(!write_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold])) break;
@@ -530,7 +648,9 @@ bool uni_remote_store_load_details(UniRemoteStore* store, size_t remote_index) {
 
         for(uint32_t i = 0; i < element_count; i++) {
             if(!load_element(ff, i, &elements[i])) goto done_details;
+            if(elements[i].page >= remote->page_count) goto done_details;
         }
+        if(!loaded_layout_valid(elements, element_count)) goto done_details;
 
         remote->elements = elements;
         remote->element_count = element_count;
@@ -555,7 +675,11 @@ bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
     storage_common_mkdir(storage, UNI_REMOTES_DIR);
     scan_remotes(store);
     if(store->count == 0) {
-        ensure_default_package(storage);
+        /*
+         * If every package is malformed, repair the built-in fallback even
+         * when stale demo files already exist.
+         */
+        ensure_default_package(storage, true);
         scan_remotes(store);
     }
     return store->count > 0;
@@ -564,6 +688,10 @@ bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
 bool uni_remote_store_reload(UniRemoteStore* store) {
     if(!store || !store->storage) return false;
     scan_remotes(store);
+    if(store->count == 0) {
+        ensure_default_package(store->storage, true);
+        scan_remotes(store);
+    }
     return store->count > 0;
 }
 
@@ -589,12 +717,259 @@ size_t uni_remote_store_find_id(const UniRemoteStore* store, const char* id) {
     return 0;
 }
 
+static bool store_has_favorites(const UniRemoteStore* store) {
+    if(!store) return false;
+    for(size_t i = 0; i < store->count; i++) {
+        if(store->remotes[i].favorite) return true;
+    }
+    return false;
+}
+
+static bool store_has_uncategorized(const UniRemoteStore* store) {
+    if(!store) return false;
+    for(size_t i = 0; i < store->count; i++) {
+        if(!store->remotes[i].folder[0]) return true;
+    }
+    return false;
+}
+
+static bool folder_is_first_occurrence(const UniRemoteStore* store, size_t index) {
+    if(!store || index >= store->count || !store->remotes[index].folder[0]) return false;
+    for(size_t i = 0; i < index; i++) {
+        if(strcmp(store->remotes[i].folder, store->remotes[index].folder) == 0) return false;
+    }
+    return true;
+}
+
+size_t uni_remote_store_folder_count(const UniRemoteStore* store) {
+    if(!store) return 0;
+    size_t count = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(folder_is_first_occurrence(store, i)) count++;
+    }
+    return count;
+}
+
+bool uni_remote_store_folder_name(
+    const UniRemoteStore* store,
+    size_t folder_index,
+    char* out,
+    size_t out_size) {
+    if(!store || !out || out_size == 0) return false;
+    size_t current = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(!folder_is_first_occurrence(store, i)) continue;
+        if(current++ == folder_index) {
+            snprintf(out, out_size, "%s", store->remotes[i].folder);
+            return true;
+        }
+    }
+    out[0] = '\0';
+    return false;
+}
+
+size_t uni_remote_store_category_count(const UniRemoteStore* store) {
+    if(!store || store->count == 0) return 0;
+    size_t count = uni_remote_store_folder_count(store);
+    if(store_has_favorites(store)) count++;
+    if(store_has_uncategorized(store)) count++;
+    return count;
+}
+
+static bool category_kind(
+    const UniRemoteStore* store,
+    size_t category_index,
+    bool* favorite,
+    bool* uncategorized,
+    char* folder,
+    size_t folder_size) {
+    if(!store || !favorite || !uncategorized || !folder || folder_size == 0) return false;
+    *favorite = false;
+    *uncategorized = false;
+    folder[0] = '\0';
+
+    const bool has_fav = store_has_favorites(store);
+    const size_t folder_count = uni_remote_store_folder_count(store);
+    size_t cursor = 0;
+
+    if(has_fav) {
+        if(category_index == cursor) {
+            *favorite = true;
+            return true;
+        }
+        cursor++;
+    }
+
+    if(category_index >= cursor && category_index < cursor + folder_count) {
+        return uni_remote_store_folder_name(
+            store,
+            category_index - cursor,
+            folder,
+            folder_size);
+    }
+    cursor += folder_count;
+
+    if(store_has_uncategorized(store) && category_index == cursor) {
+        *uncategorized = true;
+        return true;
+    }
+    return false;
+}
+
+bool uni_remote_store_category_name(
+    const UniRemoteStore* store,
+    size_t category_index,
+    char* out,
+    size_t out_size) {
+    if(!out || out_size == 0) return false;
+    bool favorite = false;
+    bool uncategorized = false;
+    char folder[UNI_FOLDER_MAX] = {0};
+    if(!category_kind(
+           store,
+           category_index,
+           &favorite,
+           &uncategorized,
+           folder,
+           sizeof(folder))) {
+        out[0] = '\0';
+        return false;
+    }
+    if(favorite) snprintf(out, out_size, "FAVOURITE");
+    else if(uncategorized) snprintf(out, out_size, "UNCATEGORIZED");
+    else snprintf(out, out_size, "%s", folder);
+    return true;
+}
+
+static bool remote_in_category(
+    const UniRemoteStore* store,
+    size_t category_index,
+    size_t remote_index) {
+    if(!store || remote_index >= store->count) return false;
+    bool favorite = false;
+    bool uncategorized = false;
+    char folder[UNI_FOLDER_MAX] = {0};
+    if(!category_kind(
+           store,
+           category_index,
+           &favorite,
+           &uncategorized,
+           folder,
+           sizeof(folder))) {
+        return false;
+    }
+
+    const UniRemote* remote = &store->remotes[remote_index];
+    if(favorite) return remote->favorite;
+    if(uncategorized) return !remote->folder[0];
+    return strcmp(remote->folder, folder) == 0;
+}
+
+size_t uni_remote_store_category_remote_count(
+    const UniRemoteStore* store,
+    size_t category_index) {
+    if(!store) return 0;
+    size_t count = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(remote_in_category(store, category_index, i)) count++;
+    }
+    return count;
+}
+
+size_t uni_remote_store_category_remote_at(
+    const UniRemoteStore* store,
+    size_t category_index,
+    size_t position) {
+    if(!store) return 0;
+    size_t current = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(!remote_in_category(store, category_index, i)) continue;
+        if(current++ == position) return i;
+    }
+    return store->count;
+}
+
+size_t uni_remote_store_category_for_remote(
+    const UniRemoteStore* store,
+    size_t remote_index) {
+    if(!store || remote_index >= store->count) return 0;
+    const size_t count = uni_remote_store_category_count(store);
+    for(size_t category = 0; category < count; category++) {
+        if(remote_in_category(store, category, remote_index)) return category;
+    }
+    return 0;
+}
+
+size_t uni_remote_store_category_position(
+    const UniRemoteStore* store,
+    size_t category_index,
+    size_t remote_index) {
+    if(!store) return 0;
+    size_t position = 0;
+    for(size_t i = 0; i < store->count; i++) {
+        if(!remote_in_category(store, category_index, i)) continue;
+        if(i == remote_index) return position;
+        position++;
+    }
+    return 0;
+}
+
+static bool metadata_details_were_loaded(
+    const UniRemoteStore* store,
+    size_t remote_index) {
+    const UniRemote* remote = uni_remote_store_get(store, remote_index);
+    return remote && remote->elements_loaded && remote->elements;
+}
+
+static bool finish_metadata_save(
+    UniRemoteStore* store,
+    size_t remote_index,
+    bool was_loaded) {
+    const bool ok = uni_remote_store_save(store, remote_index);
+    if(!was_loaded) uni_remote_store_unload_details(store, remote_index);
+    return ok;
+}
+
 bool uni_remote_store_set_repeat(UniRemoteStore* store, size_t remote_index, bool enabled) {
+    const bool was_loaded = metadata_details_were_loaded(store, remote_index);
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
-    if(!remote) return false;
+    if(!remote) {
+        if(!was_loaded) uni_remote_store_unload_details(store, remote_index);
+        return false;
+    }
     remote->repeat_enabled = enabled;
-    return uni_remote_store_save(store, remote_index);
+    return finish_metadata_save(store, remote_index, was_loaded);
+}
+
+bool uni_remote_store_set_favorite(UniRemoteStore* store, size_t remote_index, bool enabled) {
+    const bool was_loaded = metadata_details_were_loaded(store, remote_index);
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote) {
+        if(!was_loaded) uni_remote_store_unload_details(store, remote_index);
+        return false;
+    }
+    remote->favorite = enabled;
+    return finish_metadata_save(store, remote_index, was_loaded);
+}
+
+bool uni_remote_store_set_folder(
+    UniRemoteStore* store,
+    size_t remote_index,
+    const char* folder) {
+    if(!folder || strchr(folder, '/') || strchr(folder, '\n') || strchr(folder, '\r')) return false;
+    if(strlen(folder) >= UNI_FOLDER_MAX) return false;
+
+    const bool was_loaded = metadata_details_were_loaded(store, remote_index);
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote) {
+        if(!was_loaded) uni_remote_store_unload_details(store, remote_index);
+        return false;
+    }
+    snprintf(remote->folder, sizeof(remote->folder), "%s", folder);
+    return finish_metadata_save(store, remote_index, was_loaded);
 }
 
 static bool elements_overlap_at(
@@ -605,6 +980,7 @@ static bool elements_overlap_at(
     uint8_t bx,
     uint8_t by) {
     if(!a || !b) return false;
+    if(a->page != b->page) return false;
     for(uint8_t y = 0; y < 6; y++) {
         for(uint8_t x = 0; x < 3; x++) {
             if(uni_element_occupies_cell_at(a, ax, ay, x, y) &&
@@ -733,6 +1109,83 @@ static void remove_overlaps(
     }
 }
 
+bool uni_remote_store_set_label(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    const char* label) {
+    if(!label || strlen(label) >= UNI_LABEL_MAX) return false;
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || element_index >= remote->element_count) return false;
+
+    UniElement* element = &remote->elements[element_index];
+    char old_label[UNI_LABEL_MAX];
+    snprintf(old_label, sizeof(old_label), "%s", element->label);
+    snprintf(element->label, sizeof(element->label), "%s", label);
+
+    if(!uni_remote_store_save(store, remote_index)) {
+        snprintf(element->label, sizeof(element->label), "%s", old_label);
+        return false;
+    }
+    return true;
+}
+
+bool uni_remote_store_set_element_page(
+    UniRemoteStore* store,
+    size_t remote_index,
+    size_t element_index,
+    uint8_t page_index) {
+    if(!uni_remote_store_load_details(store, remote_index)) return false;
+
+    UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
+    if(!remote || element_index >= remote->element_count) return false;
+    if(page_index > remote->page_count || page_index >= UNI_MAX_PAGES) return false;
+
+    UniElement* element = &remote->elements[element_index];
+    const UniElement old = *element;
+    const uint8_t old_page_count = remote->page_count;
+
+    if(page_index == remote->page_count) {
+        remote->page_count++;
+    }
+    element->page = page_index;
+
+    if(!element_free(remote, element_index, element, element->x, element->y)) {
+        uint8_t nx = 0;
+        uint8_t ny = 0;
+        if(!find_nearest_free_position(
+               remote,
+               element_index,
+               element,
+               element->x,
+               element->y,
+               &nx,
+               &ny)) {
+            *element = old;
+            remote->page_count = old_page_count;
+            return false;
+        }
+        element->x = nx;
+        element->y = ny;
+    }
+
+    uint8_t required_pages = 1;
+    for(size_t i = 0; i < remote->element_count; i++) {
+        const uint8_t needed = (uint8_t)(remote->elements[i].page + 1U);
+        if(needed > required_pages) required_pages = needed;
+    }
+    remote->page_count = required_pages;
+
+    if(!uni_remote_store_save(store, remote_index)) {
+        *element = old;
+        remote->page_count = old_page_count;
+        return false;
+    }
+    return true;
+}
+
 bool uni_remote_store_move_element(
     UniRemoteStore* store,
     size_t remote_index,
@@ -829,11 +1282,13 @@ static void init_from_preset(
     UniElement* element,
     const UniElementPreset* preset,
     const char* id,
+    uint8_t page,
     uint8_t x,
     uint8_t y) {
     memset(element, 0, sizeof(UniElement));
     snprintf(element->id, sizeof(element->id), "%s", id ? id : preset->id);
     element->type = preset->type;
+    element->page = page;
     element->x = x;
     element->y = y;
     element->w = preset->w;
@@ -846,14 +1301,16 @@ bool uni_remote_store_add_element(
     UniRemoteStore* store,
     size_t remote_index,
     size_t preset_index,
+    uint8_t page_index,
     size_t* new_index) {
     if(!uni_remote_store_load_details(store, remote_index)) return false;
     UniRemote* remote = uni_remote_store_get_mut(store, remote_index);
     const UniElementPreset* preset = uni_element_preset_get(preset_index);
-    if(!remote || !preset) return false;
+    if(!remote || !preset || page_index >= remote->page_count) return false;
 
     UniElement candidate = {0};
     candidate.type = preset->type;
+    candidate.page = page_index;
     candidate.w = preset->w;
     candidate.h = preset->h;
 
@@ -874,7 +1331,7 @@ bool uni_remote_store_add_element(
     UniElement* e = &remote->elements[index];
     char id[UNI_ID_MAX];
     snprintf(id, sizeof(id), "%.18s%lu", preset->id, (unsigned long)index);
-    init_from_preset(e, preset, id, x, y);
+    init_from_preset(e, preset, id, page_index, x, y);
 
     if(!uni_remote_store_save(store, remote_index)) {
         remote->element_count--;
@@ -922,6 +1379,7 @@ bool uni_remote_store_replace_element(
             &remote->elements[element_index],
             preset,
             old.id,
+            old.page,
             x,
             y);
     }
@@ -958,6 +1416,7 @@ bool uni_remote_store_apply_layout(
     memset(remote->elements, 0, UNI_MAX_ELEMENTS * sizeof(UniElement));
     memcpy(remote->elements, layout->elements, layout->count * sizeof(UniElement));
     remote->element_count = layout->count;
+    remote->page_count = 1;
     return uni_remote_store_save(store, remote_index);
 }
 

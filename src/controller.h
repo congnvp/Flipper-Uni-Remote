@@ -17,6 +17,7 @@ typedef enum {
 } UniKey;
 
 typedef struct {
+    uint8_t page_index;
     size_t focus_index;
     size_t focus_before_capture;
     bool focus_before_capture_valid;

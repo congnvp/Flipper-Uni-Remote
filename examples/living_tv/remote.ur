@@ -52,4 +52,4 @@ Element5Id: source
 Element5Rect: 2 4 1 2
 Element5Label: SRC
 Element5Up:
-Element5Down:
+Element5Down: act:mute_alias

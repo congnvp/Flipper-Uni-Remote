@@ -5,10 +5,10 @@ App(
     entry_point="uni_remote_app",
     stack_size=8 * 1024,
     fap_category="Infrared",
-    fap_description="Data-driven universal remote with layout, action and icon editors",
-    fap_version="0.4",
+    fap_description="Universal remote with IR, stateful AC and Bluetooth HID",
+    fap_version="0.10",
     fap_author="congnvp",
     fap_weburl="https://github.com/congnvp/Flipper-Uni-Remote",
     sources=["src/*.c"],
-    fap_libs=["infrared"],
+    fap_libs=["infrared", "ble_profile"],
 )

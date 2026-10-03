@@ -29,10 +29,16 @@ Name: {display_name}
 ShortName: {short_name}
 Transport: IR
 Order: 100
+Favourite: false
+Folder:
 RepeatEnabled: true
+PageCount: 1
+IrBurst: 1
 SignalFile: signals.ir
 ActionFile: actions.ur
-BluetoothProfile: {remote_id}
+BluetoothProfile:
+StateAdapter:
+StateFile: state.urs
 HardUpHold:
 HardDownHold:
 HardLeftHold:
@@ -42,15 +48,18 @@ ElementCount: 5
 #
 Element0Type: status
 Element0Id: status
+Element0Page: 0
 Element0Rect: 0 0 3 1
 #
 Element1Type: screen
 Element1Id: main
+Element1Page: 0
 Element1Rect: 0 1 3 2
 Element1Label: READY
 #
 Element2Type: hstep
 Element2Id: horizontal
+Element2Page: 0
 Element2Rect: 0 3 3 1
 Element2Label: NAV
 Element2Left: sig:Left
@@ -58,6 +67,7 @@ Element2Right: sig:Right
 #
 Element3Type: vstep
 Element3Id: vertical
+Element3Page: 0
 Element3Rect: 0 4 1 2
 Element3Label: VOL
 Element3Up: sig:Up
@@ -65,6 +75,7 @@ Element3Down: sig:Down
 #
 Element4Type: button
 Element4Id: power
+Element4Page: 0
 Element4Rect: 1 4 1 2
 Element4Label: PWR
 Element4Icon: pwr

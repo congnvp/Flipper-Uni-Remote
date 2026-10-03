@@ -2,87 +2,87 @@
 
 Last updated: 2026-10-03
 
-## Known-good baseline
+## Baseline and integration candidate
 
-- Version: `0.4.3`
-- Branch baseline: `main`
-- Runtime rollback commit: `9eb46426953bfa993831caf0c5a6626584f7e155`
-- GitHub Actions: FAP build run #40 completed successfully on 2026-10-02.
-- Baseline-handoff PR #9 also passed version check, official uFBT build, artifact upload and advisory lint.
-- Hardware verification is separate from CI and must never be inferred from a green build.
+- Stable rollback baseline: `v0.4.3`.
+- Baseline runtime rollback commit: `9eb46426953bfa993831caf0c5a6626584f7e155`.
+- Integration branch: `feat/v1-integration`.
+- Integration PR: #11.
+- Software release-candidate version: `0.10.0`.
+- Hardware verification remains separate from CI and must not be inferred from a green build.
 
-The runtime rollback point remains v0.4.3 commit `9eb46426953bfa993831caf0c5a6626584f7e155`.
+## Implemented
 
-## Current milestone
+### M1 - Real stateless IR
 
-**M1.1 - Real stateless IR validation: Sony RM-PJ8**
+- Generic multi-page engine: 1..16 pages.
+- Sony RM-PJ8: 22 known SIRC commands, 3-page layout, parsed burst=3.
+- Optoma HR21G-YHGD03: 18 known NEC commands, 3-page layout.
 
-M0 (baseline freeze and durable handoff) is complete. The repository is now the source of truth for project state and next actions.
+### M2 - Stateful IR
 
-## Working in v0.4.3
+- Executable `STATE_IR` transport and deferred `state.urs` persistence.
+- LG AC adapter.
+- Daikin ARC433A73 adapter.
+- Transport-aware on-device state-action mapping.
 
-- SD-card remote packages under Apps Data.
-- Metadata-only chooser scan plus lazy loading of one active remote layout to reduce memory pressure.
-- Standard Flipper `.ir` files with parsed and raw IR signals.
-- Direct signal bindings via `sig:<name>`.
-- Named action bindings via `act:<id>`.
-- Signal aliases and synchronous sequences with delays.
-- Portrait 64x128 logical UI rendered on the native 128x64 LCD.
-- 3x6 logical layout grid.
-- On-device Layout Editor: Move, Add, Replace, Remove, Map, Icon and Template.
-- Element presets including 1x1, 1x2, 2x1, steppers, D-pad, Status and Screen.
-- Icon library with stable short IDs.
-- D-pad NORMAL/HOLD/ALT behavior.
-- Global and per-remote settings.
-- Safe reload path.
-- Cell-level occupancy masks, including usable D-pad corner cells.
-- Runtime/editor spatial navigation using the same occupied-cell geometry.
-- GitHub Actions build workflow using official uFBT action.
+### M3 - Library / persistence
 
-## Declared or reserved, but not implemented yet
+- FAVOURITE, user folders and UNCATEGORIZED.
+- Favourite independent of folder membership.
+- Metadata-only Home with lazy full-layout loading.
+- Last remote/page/focus restore.
+- On-device folder text entry.
 
-- Executable `STATE_IR` transport.
-- `state.urs` runtime state persistence/driver contract.
-- AC protocol adapters and full-frame state encoders.
-- BLE/HID transport.
-- Bluetooth per-profile identity/bond handling.
-- Favourite/folder/uncategorized remote library organization.
-- On-device editing of sequence steps.
-- A repository-level regression set built from the real Sony, Optoma, LG and Daikin remotes previously developed in separate repositories.
+### M4 - Bluetooth HID
 
-## Next task
+- BLE HID media/navigation bindings.
+- Profile-scoped private bond files and stable profile identity.
+- Default Flipper Bluetooth profile restored when leaving BT remote.
 
-**M1.1 - Real stateless IR validation: Sony RM-PJ8**
+### M5 - Hardening
 
-1. Import or recreate a portable Sony RM-PJ8 remote package using the existing data-driven package format.
-2. Keep all protocol bytes in `signals.ir`.
-3. Bind UI elements only through `sig:` / `act:`.
-4. Validate parsed/raw send behavior, repeat policy, navigation and reload.
-5. Run `python3 tools/check_version.py`, `ufbt` and `ufbt lint`.
-6. Record CI result in this file.
-7. Hardware test on a physical Flipper + Sony projector is required before marking TX as hardware-passed.
+- Runtime and CI package validation.
+- Unsafe path, invalid identity, missing signal, geometry/collision and malformed-settings recovery.
+- Release-channel uFBT build, lint and complete artifact packaging.
+- Malformed-profile regression suite.
 
-After Sony passes, repeat the same process for the Optoma projector before touching `STATE_IR`.
+### M6 - Editing / macro completion
 
-## Do not do next
+- Home remote rows are borderless text rows with selected-row inversion.
+- Successful control actions get a second short inversion as press feedback.
+- Layout Editor can edit Label and Page and append new pages.
+- Empty trailing pages are trimmed.
+- Folder names can be created/edited directly on-device.
+- IR Macro Editor can create, rename, delete and edit sequences.
+- Macro steps can select signals or nested macros.
+- Step delay editing in 100 ms increments, capped at 60000 ms.
+- Nested macro execution has runtime cycle protection.
+- Validator rejects recursive macro graphs and invalid action IDs/delays.
+- Runtime validates externally edited action graphs before accepting them.
+- Returning from editors to Home restores strict metadata-only memory state.
 
-- Do not implement Bluetooth yet.
-- Do not add LG and Daikin encoders in the same change.
-- Do not refactor UI/layout code while validating Sony unless a reproducible runtime bug requires it.
-- Do not change public icon IDs or package semantics without a migration note.
-- Do not mark hardware-facing behavior as passed from CI alone.
+## Remaining before v1.0.0
 
-## Session handoff template
+Only physical evidence/release-gate work remains:
 
-At the end of every development session, update this section.
+1. Sony RM-PJ8 physical TX/navigation.
+2. Optoma physical TX/navigation.
+3. LG AC state/restore/TX regression.
+4. Daikin AC state/restore/TX regression.
+5. BLE HID pair/reconnect/media/navigation against a real host.
+6. Stress switching/reloading remotes and long/repeat actions on a real Flipper.
+7. Record results in `TEST_MATRIX.md`.
+8. Tag `v1.0.0` only after required hardware rows pass.
+
+## Current handoff
 
 ```text
-Current milestone:
-Working:
-Broken:
-Not implemented:
-Validation run:
-Hardware test:
-Next task:
-Last known-good commit:
+Current milestone: M6 / 0.10.0 software completion candidate
+Working: M1-M6 implementation and validation pipeline
+Broken: no known software-side blocker; 0.10 code/test head passed GitHub Actions run #255
+Not implemented: no known software feature from the agreed design remains
+Hardware test: TBD
+Next task: physical regression matrix; keep v1.0.0 gated until required hardware rows pass
+Rollback baseline: v0.4.3 / 9eb46426953bfa993831caf0c5a6626584f7e155
 ```

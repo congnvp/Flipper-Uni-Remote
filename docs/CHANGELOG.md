@@ -1,5 +1,83 @@
 # Changelog
 
+## [0.10.0] - 2026-10-03
+
+Completion pass for the remaining software-side authoring and interaction work. Physical target validation is still required before v1.0.0.
+
+### Added
+
+- Borderless text-only Home rows with full-row selection inversion.
+- Timed second inversion for successful control press feedback.
+- On-device Label editor.
+- On-device Page editor with new-page creation and trailing-empty-page trimming.
+- On-device Folder text entry.
+- On-device IR Macro Editor: create, rename, add/replace/remove steps, delay editing and safe deletion.
+- Nested sequence steps through `act:<id>`.
+- Runtime and static cycle detection for nested macros.
+- 60-second per-step delay ceiling and action-ID character validation.
+- Bundled nested-macro regression profile.
+
+### Changed
+
+- Returning from editor flows to Home unloads the active layout again, preserving metadata-only Home memory behavior.
+- Runtime action loading validates the complete externally edited action graph before accepting it.
+- Sequence steps accept plain signals, `sig:<name>` and `act:<id>`.
+
+### Validation
+
+- GitHub Actions run #255 passed version consistency, six bundled profiles, malformed/nested-macro regressions, release-channel uFBT build, artifact upload and lint.
+- Run #255 artifact contains one FAP plus all six profile directories; ZIP SHA-256 `cd434903ef5d6b16769b0f3d519af8749595e0e4e8348e4984446ad30d97b051`.
+- Hardware-facing rows remain TBD until physical testing.
+
+## [0.9.0] - 2026-10-03
+
+Software-complete release candidate for the current v1 scope. Physical target validation is still required before v1.0.0.
+
+### Added
+
+- Generic 1..16 page remote layouts with page-aware runtime/editor navigation.
+- Per-remote parsed-IR burst count.
+- Sony RM-PJ8 regression profile with all 22 known SIRC commands.
+- Optoma HR21G-YHGD03 regression profile with all 18 known NEC commands.
+- Executable `STATE_IR` state engine and `state.urs` persistence.
+- LG AC stateful adapter ported from the known-working LG project.
+- Daikin ARC433A73 stateful adapter ported from the known-working Daikin project.
+- Favourite, user folders and UNCATEGORIZED library views.
+- Last remote/page/focus restore.
+- BLE HID transport with profile-scoped bond storage and identity.
+- Bluetooth Media regression profile.
+- Transport-aware on-device Map editor for IR, stateful IR and Bluetooth actions.
+- Static package validator for paths, bindings, actions, icons, pages, geometry and collisions.
+- CI artifacts containing the FAP plus all bundled example profiles.
+- 0.9 installation and hardware-gate documentation.
+
+### Changed
+
+- Remote layout page count is determined by usability, not by a fixed remote-template page count.
+- Parsed IR transmission can reproduce device-specific initial frame bursts.
+- Home chooser remains metadata-only while supporting categories.
+- Remote Settings now expose Favourite and Folder.
+- Bluetooth activates only for BT remotes and restores the default Flipper profile on exit.
+
+### Fixed in final audit
+
+- Aligned named signal action validation with the runtime `signal` action type and runtime size limits.
+- Restored STATE_IR/Bluetooth transport state correctly after `RELOAD`.
+- Replaced effectively invisible same-frame TX feedback with a timed 250 ms indicator.
+- Preserved LG Jet state across power-off to match the working standalone LG implementation.
+- Normalized Daikin Powerful off whenever the local unit state is off.
+- Kept Favourite/Folder/Repeat metadata edits lazy so Home does not retain an unnecessary full layout.
+- Re-synced the Home category after Favourite/Folder changes.
+- Rejected unsafe package filenames, invalid Bluetooth profile IDs, missing IR signal files and colliding external layouts at runtime.
+- Recovered automatically from malformed global settings and rebuilt the demo fallback if every remote package is invalid.
+- Added malformed-profile regression tests to CI.
+
+### Validation
+
+- Package schema validation passes for living_tv, Sony, Optoma, LG, Daikin and Bluetooth Media.
+- Official release-channel uFBT build, malformed-profile regressions and lint passed in PR #11 run #221 after the final software audit.
+- Physical TX, AC state acceptance and BLE pair/reconnect remain tracked as TBD in `TEST_MATRIX.md`.
+
 ## [0.4.3] - 2026-10-02
 
 ### Fixed

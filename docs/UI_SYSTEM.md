@@ -57,9 +57,15 @@ It must never be made configurable.
 
 Short Back opens the app Menu when not inside D-pad capture. Inside D-pad capture, Short Back releases capture and restores the element used to enter it. Long Back is always system-reserved.
 
+Home uses text-only remote rows; only the selected row is inverted. Remote rows do not use button borders.
+
+Interactive controls invert on focus. A successful action briefly inverts the focused control again as press feedback.
+
 Layout Editor has two modes:
-- Select: directions move selection spatially between interactive elements.
+- Select: directions move selection spatially between elements.
 - Move: OK enters/leaves Move mode; directions move the selected element by one 3×6 grid cell.
+
+Layout Tools also edit Label and Page. Page can move a control to an existing page or append a new page when capacity permits. Folder and Label text entry use the built-in character editor: Up/Down changes a character, Left/Right moves the cursor, OK saves and Back cancels.
 
 If the destination is occupied by exactly one element with identical dimensions, the elements swap positions. Invalid overlaps are rejected.
 
@@ -81,9 +87,12 @@ ALT keeps focus captured and renders the configured HOLD icons. A short directio
 
 Short Back in Layout Editor opens:
 - Add
+- Replace
 - Remove
 - Map
 - Icon
+- Label
+- Page
 - Template
 - Done
 

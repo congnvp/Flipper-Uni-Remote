@@ -1,0 +1,110 @@
+Filetype: IR signals file
+Version: 1
+#
+name: Power
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 02 00 00 00
+#
+name: Aspect_ratio
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 64 00 00 00
+#
+name: Source
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: C3 00 00 00
+#
+name: Mode
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 05 00 00 00
+#
+name: Up
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 11 00 00 00
+#
+name: Left
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 10 00 00 00
+#
+name: Right
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 12 00 00 00
+#
+name: Down
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 14 00 00 00
+#
+name: Enter
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 0F 00 00 00
+#
+name: Settings
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: A8 00 00 00
+#
+name: Return
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 0D 00 00 00
+#
+name: Menu
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 0E 00 00 00
+#
+name: Volume_down
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 8F 00 00 00
+#
+name: Mute
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 52 00 00 00
+#
+name: Volume_up
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 8C 00 00 00
+#
+name: Freeze
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 06 00 00 00
+#
+name: Keystone
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 07 00 00 00
+#
+name: Av_mute
+type: parsed
+protocol: NEC
+address: 32 00 00 00
+command: 03 00 00 00

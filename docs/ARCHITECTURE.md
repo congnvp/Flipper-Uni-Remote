@@ -2,63 +2,80 @@
 
 ## Core rule
 
-The UI does not know IR protocol bits and transports do not know layout geometry.
+The UI owns geometry and presentation. Transports own device communication. Protocol bytes and bond secrets do not belong in layout code.
 
 ```text
-Element -> Controller -> Action name -> Transport
-State   -> UI display elements
+Physical key
+  -> Controller
+  -> binding
+  -> transport dispatcher
+       IR       -> Action Engine -> IR transport
+       STATE_IR -> State Engine -> adapter -> IR TX
+       BT       -> BLE HID transport
 ```
 
 ## Remote model
 
-`src/remote.h` defines portable remote concepts: transport, elements, grid rectangle, signal bindings, ordering and future Bluetooth profile identity.
+`src/remote.h` defines transport-neutral UI elements plus portable package metadata:
 
-## Store
+- ID/name/order;
+- Favourite/folder;
+- page count and element page;
+- IR burst policy;
+- signal/action filenames;
+- state adapter/state filename;
+- Bluetooth profile identity.
 
-`src/remote_store.c` scans `APP_DATA_PATH("remotes")`. Each valid directory contains `remote.ur`; the signal file referenced by that configuration remains a standard Flipper `.ir` file.
+The model does not embed vendor IR protocol frames.
 
-The store intentionally keeps a fixed upper bound in v0.x so corrupted SD data cannot cause uncontrolled allocations. The limits can be raised or replaced by a dynamic vector later without changing the file format.
+## Store and memory
+
+`src/remote_store.c` scans `APP_DATA_PATH("remotes")`.
+
+Chooser/library views retain lightweight remote metadata only. Full element arrays are lazy-loaded for the active remote and released when no longer needed. Category calculations therefore do not reintroduce the pre-v0.4.1 memory problem.
+
+The store applies fixed upper bounds to hostile/corrupt SD data.
 
 ## Controller
 
-`src/controller.c` owns hard-key policy and focus capture.
+`src/controller.c` owns key policy, focus and capture.
 
-Priority:
+Long Back is reserved globally. Runtime focus navigation is page-aware and uses logical occupied cells rather than raw bounding boxes.
 
-```text
-SYSTEM RESERVED
-    -> FOCUS CAPTURE
-    -> ELEMENT BINDING
-    -> future REMOTE KEYMAP
-    -> future GLOBAL DEFAULT
-```
+D-pad occupies a five-cell cross inside a 3×3 bound, allowing corner controls.
 
-Long Back is evaluated first and is never exposed as a configurable binding.
+## Ordinary IR
 
-## IR transport
+`src/action_engine.c` resolves `sig:` and `act:` bindings. Sequence steps can recursively invoke other actions; the action graph is validated on load/save and execution carries a cycle guard.
 
-`src/ir_transport.c` opens the remote's `.ir` file, finds a signal by `name`, and transmits it through the firmware infrared signal API. Parsed signals can receive protocol repeat semantics; raw signals are retransmitted as captured.
-
-## UI
-
-The logical canvas is 64×128 portrait and maps to the physical 128×64 LCD using:
-
-```text
-logical (x, y) -> native (y, 63 - x)
-```
-
-The file format stores grid rectangles, not pixel positions. Renderer changes therefore do not require rewriting user remote packages.
+`src/ir_transport.c` reads standard Flipper IR signal files and transmits parsed/raw signals. Parsed signals can use the remote's `IrBurst`; raw signals retain their captured timing payload.
 
 ## Stateful IR
 
-`STATE_IR` is a declared transport type but not executed in v0.2. Stateful appliances such as many air conditioners will use a state encoder/decoder driver, not a fake collection of independent button frames.
+`src/state_engine.c` owns LOCAL remembered state and `state.urs` persistence.
 
-The future state file should distinguish at least:
+`src/state_adapter_lg.c` and `src/state_adapter_daikin.c` own vendor encoding and normalization. TEMP/FAN/MODE mutate state and regenerate the appropriate frame rather than pretending to be independent learned buttons.
 
-- `LOCAL`: state last sent/remembered by the FAP.
-- `CONFIRMED`: state verified through a feedback channel.
-- `UNKNOWN`: state cannot be trusted.
+Displayed AC state is LOCAL, not confirmed appliance feedback.
 
-## Bluetooth
+## Bluetooth HID
 
-`BluetoothProfile` is already part of the remote package, but pairing keys are not. The BLE transport must keep identity/bond storage in app-private storage and test whether firmware-exported APIs permit per-remote identity switching before claiming strict isolation between two identical nearby hosts.
+`src/bt_transport.c` starts a BLE HID profile only while a BT remote is active.
+
+Each `BluetoothProfile` receives:
+
+- a stable profile-derived BLE identity;
+- a separate app-private key-storage file;
+- media/keyboard HID report execution.
+
+Leaving the BT remote releases HID keys, disconnects, restores the default key path and restores the default Flipper Bluetooth profile.
+
+## UI
+
+The logical canvas is 64×128 portrait, mapped onto the native 128×64 LCD.
+
+Packages store logical 3×6 rectangles, not pixels. Multi-page layouts reuse the same logical grid per page. The editor operates on the same geometry and transport-valid action model as runtime. On-device authoring also covers labels, page assignment, folder names and IR sequence macros.
+
+## Validation
+
+`tools/check_profiles.py` statically validates portable package structure before the FAP compiles. Hardware acceptance remains outside static validation and is recorded in `TEST_MATRIX.md`.

@@ -6,12 +6,15 @@
 
 #define UNI_MAX_REMOTES 12
 #define UNI_MAX_ELEMENTS 18
+#define UNI_MAX_PAGES 16
 #define UNI_ID_MAX 24
 #define UNI_NAME_MAX 32
 #define UNI_LABEL_MAX 12
 #define UNI_BINDING_MAX 40
 #define UNI_PATH_MAX 160
 #define UNI_BT_PROFILE_MAX 24
+#define UNI_STATE_ADAPTER_MAX 16
+#define UNI_FOLDER_MAX 24
 #define UNI_ICON_ID_MAX 9
 
 typedef enum {
@@ -41,6 +44,7 @@ typedef enum {
 typedef struct {
     char id[UNI_ID_MAX];
     UniElementType type;
+    uint8_t page;
     uint8_t x;
     uint8_t y;
     uint8_t w;
@@ -79,6 +83,10 @@ typedef struct {
     UniTransport transport;
     uint32_t order;
     bool repeat_enabled;
+    uint8_t page_count;
+    uint8_t ir_burst;
+    bool favorite;
+    char folder[UNI_FOLDER_MAX];
 
     char config_path[UNI_PATH_MAX];
     char signal_file[64];
@@ -87,6 +95,9 @@ typedef struct {
     char action_path[UNI_PATH_MAX];
 
     char bluetooth_profile[UNI_BT_PROFILE_MAX];
+    char state_adapter[UNI_STATE_ADAPTER_MAX];
+    char state_file[64];
+    char state_path[UNI_PATH_MAX];
     char hard_bindings[UniHardCount][UNI_BINDING_MAX];
 
     UniElement* elements;

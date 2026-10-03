@@ -12,7 +12,7 @@
 bool uni_settings_save(Storage* storage, const UniSettings* settings) {
     if(!storage || !settings) return false;
 
-    char text[256];
+    char text[384];
     const int length = snprintf(
         text,
         sizeof(text),
@@ -20,10 +20,16 @@ bool uni_settings_save(Storage* storage, const UniSettings* settings) {
         "Version: 1\n"
         "RepeatEnabled: %s\n"
         "OpenDefault: %s\n"
-        "DefaultRemote: %s\n",
+        "DefaultRemote: %s\n"
+        "LastRemote: %s\n"
+        "LastPage: %lu\n"
+        "LastFocus: %lu\n",
         settings->repeat_enabled ? "true" : "false",
         settings->open_default ? "true" : "false",
-        settings->default_remote);
+        settings->default_remote,
+        settings->last_remote,
+        (unsigned long)settings->last_page,
+        (unsigned long)settings->last_focus);
 
     if(length <= 0 || (size_t)length >= sizeof(text)) return false;
 
@@ -45,6 +51,9 @@ static bool create_default(Storage* storage) {
         .open_default = false,
     };
     snprintf(settings.default_remote, sizeof(settings.default_remote), "demo_tv");
+    settings.last_remote[0] = '\0';
+    settings.last_page = 0;
+    settings.last_focus = 0;
     return uni_settings_save(storage, &settings);
 }
 
@@ -54,6 +63,9 @@ bool uni_settings_load_or_create(Storage* storage, UniSettings* settings) {
     settings->repeat_enabled = true;
     settings->open_default = false;
     snprintf(settings->default_remote, sizeof(settings->default_remote), "demo_tv");
+    settings->last_remote[0] = '\0';
+    settings->last_page = 0;
+    settings->last_focus = 0;
 
     if(!storage_file_exists(storage, UNI_SETTINGS_PATH) && !create_default(storage)) return false;
 
@@ -82,6 +94,18 @@ bool uni_settings_load_or_create(Storage* storage, UniSettings* settings) {
                 "%s",
                 furi_string_get_cstr(value));
         }
+        flipper_format_rewind(ff);
+        if(flipper_format_read_string(ff, "LastRemote", value)) {
+            snprintf(
+                settings->last_remote,
+                sizeof(settings->last_remote),
+                "%s",
+                furi_string_get_cstr(value));
+        }
+        flipper_format_rewind(ff);
+        flipper_format_read_uint32(ff, "LastPage", &settings->last_page, 1);
+        flipper_format_rewind(ff);
+        flipper_format_read_uint32(ff, "LastFocus", &settings->last_focus, 1);
         ok = true;
     } while(false);
 
@@ -89,5 +113,10 @@ bool uni_settings_load_or_create(Storage* storage, UniSettings* settings) {
     furi_string_free(value);
     furi_string_free(filetype);
     flipper_format_free(ff);
-    return ok;
+
+    if(!ok) {
+        /* A malformed settings file must not brick app startup. */
+        return create_default(storage);
+    }
+    return true;
 }

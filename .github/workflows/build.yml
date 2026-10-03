@@ -16,6 +16,12 @@ jobs:
       - name: Check version files
         run: python3 tools/check_version.py
 
+      - name: Validate remote profiles
+        run: python3 tools/check_profiles.py
+
+      - name: Test malformed profile validation
+        run: python3 tools/test_profile_validator.py
+
       - name: Build with official uFBT action
         id: build
         uses: flipperdevices/flipperzero-ufbt-action@v0.1
@@ -26,7 +32,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: flipper-uni-remote-${{ steps.build.outputs.suffix }}
-          path: ${{ steps.build.outputs.fap-artifacts }}
+          path: |
+            ${{ steps.build.outputs.fap-artifacts }}
+            examples/**
           if-no-files-found: error
 
       - name: Lint C sources (advisory)

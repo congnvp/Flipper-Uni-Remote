@@ -1,44 +1,47 @@
 # Test Matrix
 
-Use this file to distinguish compile/CI evidence from real hardware evidence.
-
 Status values: `PASS`, `FAIL`, `TBD`, `N/A`.
 
-## Baseline evidence
+A green build is not hardware evidence.
 
-| Target | Build/CI | Runtime/package | Physical TX | Stateful persistence | Notes |
+| Target | Build/CI | Package/schema | Physical TX / Pair | Persistence / reconnect | Notes |
 | --- | --- | --- | --- | --- | --- |
-| v0.4.3 engine baseline | PASS | PASS* | TBD | N/A | GitHub Actions run #40 passed. Runtime features are present in code/docs; hardware evidence is tracked per device below. |
-| Example living_tv | PASS | PASS* | TBD | N/A | Example package exists; not a substitute for target-device verification. |
-| Sony RM-PJ8 | TBD | TBD | TBD | N/A | M1.1 |
-| Optoma HR21G-YHGD03 | TBD | TBD | TBD | N/A | M1.2 |
-| LG AC | TBD | TBD | TBD | TBD | M2 adapter 1 |
-| Daikin ARC433A73 | TBD | TBD | TBD | TBD | M2 adapter 2 |
-| Bluetooth HID media profile | TBD | TBD | TBD | N/A | M4 |
+| v0.4.3 baseline | PASS | PASS | TBD | N/A | Stable rollback baseline. |
+| living_tv example | PASS | PASS | TBD | N/A | IR regression/example package. |
+| Sony RM-PJ8 | PASS | PASS | TBD | N/A | 22 SIRC commands; 3 pages; parsed burst=3. |
+| Optoma HR21G-YHGD03 | PASS | PASS | TBD | N/A | 18 NEC commands; 3 pages. |
+| LG AC | PASS | PASS | TBD | TBD | STATE_IR encoder/state persistence compiled; physical AC confirmation pending. |
+| Daikin ARC433A73 | PASS | PASS | TBD | TBD | 35-byte/584-timing STATE_IR adapter compiled; physical AC confirmation pending. |
+| Bluetooth Media | PASS | PASS | TBD | TBD | BLE HID links through `ble_profile`; real pair/reconnect pending. |
+| Editor + nested macros | PASS | PASS | N/A | N/A | Label/Page/Folder editing, nested macro validation/editor and lazy Home path compile in CI; no target-device claim. |
 
-`PASS*` means the capability is present in the known-good baseline and the repository CI builds it, but this file does not yet contain a fresh dedicated regression record for that package.
+Software integration evidence: PR #11, GitHub Actions run #255 PASS for version consistency, six bundled profiles, malformed/nested-macro regressions, official release-channel uFBT build, artifact upload and lint. Artifact inspection found 24 files: one FAP plus all six profile directories.
 
-## Required checks per code change
+## Required software checks
 
-| Check | Required before merge |
+| Check | Required |
 | --- | --- |
 | `python3 tools/check_version.py` | Yes |
-| `ufbt` | Yes |
-| `ufbt lint` | Yes; review warnings even if CI treats lint as advisory |
-| GitHub Actions build | Yes |
-| Package parse/open test | When package/store code changes |
-| Navigation/layout regression | When controller/UI/layout code changes |
-| Physical IR TX | When signal/transport/protocol behavior changes |
-| State restore | When stateful persistence changes |
-| Pair/reconnect | When Bluetooth code changes |
+| `python3 tools/check_profiles.py` | Yes |
+| `python3 tools/test_profile_validator.py` | Yes |
+| official release-channel `ufbt` | Yes |
+| `ufbt lint` | Yes |
+| artifact contains FAP + bundled profiles | Yes |
 
-## Hardware test record format
+## Required hardware gate for v1.0.0
 
-Append concise evidence here instead of relying on chat memory.
+- Sony: open/navigate all pages; D-pad capture/release; all relevant IR commands accepted.
+- Optoma: open/navigate all pages; all relevant NEC commands accepted.
+- LG: Power, temp, mode, fan, supported swing; close/reopen LOCAL state restore; auxiliary commands sampled.
+- Daikin: Power, temp, mode, fan, swing, Powerful; close/reopen LOCAL state restore.
+- Bluetooth: first pair; reconnect after app exit/reopen; media keys; navigation keys; default Flipper BT profile restored after leaving the remote.
+- Stress: repeated page switching, repeat/hold actions, remote switching and RELOAD without crash or stale state.
+
+## Hardware test record
 
 ```text
 Date:
-Device:
+Device / target:
 Flipper firmware:
 App commit:
 Remote package:
