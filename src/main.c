@@ -6,6 +6,7 @@
 #include "layout_library.h"
 #include "remote_store.h"
 #include "settings.h"
+#include "state_engine.h"
 #include "ui.h"
 
 #include <furi.h>
@@ -27,6 +28,7 @@ typedef struct {
     Storage* storage;
     UniIrTransport* ir;
     UniActionEngine actions;
+    UniStateEngine state_engine;
     UniRemoteStore store;
     UniSettings settings;
     UniController controller;
@@ -93,6 +95,14 @@ static void open_remote(UniApp* app) {
     app->ui.page = UniUiRemote;
     app->ui.last_signal[0] = '\0';
     app->ui.tx_ok = true;
+    if(app->ui.remote->transport == UniTransportStatefulIr) {
+        app->ui.tx_ok = uni_state_engine_load(&app->state_engine, app->ui.remote);
+        if(app->ui.tx_ok)
+            uni_state_engine_summary(
+                &app->state_engine,
+                app->ui.last_signal,
+                sizeof(app->ui.last_signal));
+    }
     uni_controller_reset(&app->controller, app->ui.remote);
 }
 
@@ -111,6 +121,8 @@ static void system_escape(UniApp* app) {
     if(app->ui.page == UniUiHome) {
         app->running = false;
     } else {
+        uni_state_engine_flush(&app->state_engine);
+        uni_state_engine_unload(&app->state_engine);
         uni_remote_store_unload_details(&app->store, app->ui.selected_remote);
         app->ui.page = UniUiHome;
         app->ui.remote = NULL;
@@ -145,6 +157,8 @@ static void open_layout_editor(UniApp* app) {
 }
 
 static void reload_remotes(UniApp* app) {
+    uni_state_engine_flush(&app->state_engine);
+    uni_state_engine_unload(&app->state_engine);
     char keep_id[UNI_ID_MAX] = {0};
     const UniRemote* current = selected_remote(app);
     if(current) snprintf(keep_id, sizeof(keep_id), "%s", current->id);
@@ -208,17 +222,32 @@ static const UniNamedAction* sequence_at(const UniActionCatalog* catalog, size_t
 static void dispatch_remote_action(UniApp* app) {
     if(!app->controller.action_ready || !app->ui.remote) return;
 
-    snprintf(
-        app->ui.last_signal,
-        sizeof(app->ui.last_signal),
-        "%s",
-        app->controller.binding);
     app->ui.tx_flash = true;
-    app->ui.tx_ok = uni_action_engine_execute(
-        &app->actions,
-        app->ui.remote,
-        app->controller.binding,
-        app->controller.repeat);
+    if(app->ui.remote->transport == UniTransportInfrared) {
+        snprintf(
+            app->ui.last_signal,
+            sizeof(app->ui.last_signal),
+            "%s",
+            app->controller.binding);
+        app->ui.tx_ok = uni_action_engine_execute(
+            &app->actions,
+            app->ui.remote,
+            app->controller.binding,
+            app->controller.repeat);
+    } else if(app->ui.remote->transport == UniTransportStatefulIr) {
+        app->ui.tx_ok = uni_state_engine_execute(
+            &app->state_engine,
+            app->ui.remote,
+            app->controller.binding,
+            app->controller.repeat);
+        if(app->ui.tx_ok)
+            uni_state_engine_summary(
+                &app->state_engine,
+                app->ui.last_signal,
+                sizeof(app->ui.last_signal));
+    } else {
+        app->ui.tx_ok = false;
+    }
     app->ui.tx_flash = false;
     app->controller.action_ready = false;
 }
@@ -920,6 +949,7 @@ int32_t uni_remote_app(void* p) {
         app->storage && uni_remote_store_init(&app->store, app->storage);
     app->ir = app->storage ? uni_ir_transport_alloc(app->storage) : NULL;
     uni_action_engine_init(&app->actions, app->storage, app->ir);
+    uni_state_engine_init(&app->state_engine, app->storage);
 
     app->repeat_enabled = settings_ok ? app->settings.repeat_enabled : true;
     app->running = app->input_queue && app->view_port && app->gui && app->storage &&
@@ -967,6 +997,7 @@ int32_t uni_remote_app(void* p) {
         uni_remote_store_unload_details(&app->store, i);
     }
 
+    uni_state_engine_unload(&app->state_engine);
     if(app->gui) furi_record_close(RECORD_GUI);
     if(app->ir) uni_ir_transport_free(app->ir);
     if(app->storage) furi_record_close(RECORD_STORAGE);
