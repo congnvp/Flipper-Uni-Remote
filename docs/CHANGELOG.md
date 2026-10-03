@@ -30,10 +30,23 @@ Software-complete release candidate for the current v1 scope. Physical target va
 - Remote Settings now expose Favourite and Folder.
 - Bluetooth activates only for BT remotes and restores the default Flipper profile on exit.
 
+### Fixed in final audit
+
+- Aligned named signal action validation with the runtime `signal` action type and runtime size limits.
+- Restored STATE_IR/Bluetooth transport state correctly after `RELOAD`.
+- Replaced effectively invisible same-frame TX feedback with a timed 250 ms indicator.
+- Preserved LG Jet state across power-off to match the working standalone LG implementation.
+- Normalized Daikin Powerful off whenever the local unit state is off.
+- Kept Favourite/Folder/Repeat metadata edits lazy so Home does not retain an unnecessary full layout.
+- Re-synced the Home category after Favourite/Folder changes.
+- Rejected unsafe package filenames, invalid Bluetooth profile IDs, missing IR signal files and colliding external layouts at runtime.
+- Recovered automatically from malformed global settings and rebuilt the demo fallback if every remote package is invalid.
+- Added malformed-profile regression tests to CI.
+
 ### Validation
 
 - Package schema validation passes for living_tv, Sony, Optoma, LG, Daikin and Bluetooth Media.
-- Official release-channel uFBT build and lint passed in PR #11 run #209 for the complete 0.9.0 candidate.
+- Official release-channel uFBT build, malformed-profile regressions and lint passed in PR #11 run #221 after the final software audit.
 - Physical TX, AC state acceptance and BLE pair/reconnect remain tracked as TBD in `TEST_MATRIX.md`.
 
 ## [0.4.3] - 2026-10-02
