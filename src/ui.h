@@ -27,6 +27,8 @@ typedef enum {
     UniUiIconField,
     UniUiIconPick,
     UniUiKeymap,
+    UniUiTextEdit,
+    UniUiPagePick,
 } UniUiPage;
 
 typedef enum {
@@ -38,6 +40,11 @@ typedef enum {
     UniPickSignal,
     UniPickSequence,
 } UniPickerKind;
+
+typedef enum {
+    UniTextLabel,
+    UniTextFolder,
+} UniTextTarget;
 
 typedef struct {
     UniUiPage page;
@@ -55,6 +62,8 @@ typedef struct {
     UniKey dpad_hold_key;
 
     uint32_t tx_flash_until;
+    uint32_t press_flash_until;
+    size_t press_flash_index;
     bool tx_ok;
     char last_signal[UNI_LAST_SIGNAL_MAX];
 
@@ -68,6 +77,12 @@ typedef struct {
     UniPickerKind picker_kind;
     size_t edit_field;
     UniHardKeySlot hard_slot;
+
+    UniTextTarget text_target;
+    UniUiPage text_return_page;
+    size_t text_cursor;
+    size_t text_limit;
+    char text_buffer[UNI_FOLDER_MAX];
 } UniUiState;
 
 void uni_ui_draw(Canvas* canvas, const UniUiState* state);
