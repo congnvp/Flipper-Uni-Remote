@@ -43,6 +43,7 @@ static void ensure_default_package(Storage* storage) {
             "Transport: IR\n"
             "Order: 10\n"
             "RepeatEnabled: true\n"
+            "IrBurst: 1\n"
             "SignalFile: signals.ir\n"
             "ActionFile: actions.ur\n"
             "BluetoothProfile: tv_demo\n"
@@ -371,6 +372,7 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
     memset(remote, 0, sizeof(UniRemote));
     remote->repeat_enabled = true;
     remote->page_count = 1;
+    remote->ir_burst_count = 1;
     snprintf(remote->id, sizeof(remote->id), "%.23s", folder);
     snprintf(remote->signal_file, sizeof(remote->signal_file), "signals.ir");
     snprintf(remote->action_file, sizeof(remote->action_file), "actions.ur");
@@ -389,6 +391,10 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         if(!parse_transport(transport_text, &remote->transport)) break;
         ff_read_u32(ff, "Order", &remote->order, false);
         ff_read_bool(ff, "RepeatEnabled", &remote->repeat_enabled, false);
+        uint32_t ir_burst = 1;
+        ff_read_u32(ff, "IrBurst", &ir_burst, false);
+        if(ir_burst < 1 || ir_burst > 8) break;
+        remote->ir_burst_count = (uint8_t)ir_burst;
         uint32_t page_count = 1;
         ff_read_u32(ff, "PageCount", &page_count, false);
         if(page_count < 1 || page_count > UNI_MAX_PAGES) break;
@@ -567,6 +573,8 @@ bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index) {
         if(!write_string(ff, "Transport", transport)) break;
         if(!flipper_format_write_uint32(ff, "Order", &remote->order, 1)) break;
         if(!flipper_format_write_bool(ff, "RepeatEnabled", &remote->repeat_enabled, 1)) break;
+        uint32_t ir_burst = remote->ir_burst_count ? remote->ir_burst_count : 1;
+        if(!flipper_format_write_uint32(ff, "IrBurst", &ir_burst, 1)) break;
         uint32_t page_count = remote->page_count ? remote->page_count : 1;
         if(!flipper_format_write_uint32(ff, "PageCount", &page_count, 1)) break;
         if(!write_string(ff, "SignalFile", remote->signal_file)) break;
