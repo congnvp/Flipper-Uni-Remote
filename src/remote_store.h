@@ -19,8 +19,40 @@ const UniRemote* uni_remote_store_get(const UniRemoteStore* store, size_t index)
 UniRemote* uni_remote_store_get_mut(UniRemoteStore* store, size_t index);
 size_t uni_remote_store_find_id(const UniRemoteStore* store, const char* id);
 
+size_t uni_remote_store_category_count(const UniRemoteStore* store);
+bool uni_remote_store_category_name(
+    const UniRemoteStore* store,
+    size_t category_index,
+    char* out,
+    size_t out_size);
+size_t uni_remote_store_category_remote_count(
+    const UniRemoteStore* store,
+    size_t category_index);
+size_t uni_remote_store_category_remote_at(
+    const UniRemoteStore* store,
+    size_t category_index,
+    size_t position);
+size_t uni_remote_store_category_for_remote(
+    const UniRemoteStore* store,
+    size_t remote_index);
+size_t uni_remote_store_category_position(
+    const UniRemoteStore* store,
+    size_t category_index,
+    size_t remote_index);
+size_t uni_remote_store_folder_count(const UniRemoteStore* store);
+bool uni_remote_store_folder_name(
+    const UniRemoteStore* store,
+    size_t folder_index,
+    char* out,
+    size_t out_size);
+
 bool uni_remote_store_save(UniRemoteStore* store, size_t remote_index);
 bool uni_remote_store_set_repeat(UniRemoteStore* store, size_t remote_index, bool enabled);
+bool uni_remote_store_set_favorite(UniRemoteStore* store, size_t remote_index, bool enabled);
+bool uni_remote_store_set_folder(
+    UniRemoteStore* store,
+    size_t remote_index,
+    const char* folder);
 bool uni_remote_store_move_element(
     UniRemoteStore* store,
     size_t remote_index,
