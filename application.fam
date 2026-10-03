@@ -6,7 +6,7 @@ App(
     stack_size=8 * 1024,
     fap_category="Infrared",
     fap_description="Universal remote with IR, stateful AC and Bluetooth HID",
-    fap_version="0.9",
+    fap_version="0.10",
     fap_author="congnvp",
     fap_weburl="https://github.com/congnvp/Flipper-Uni-Remote",
     sources=["src/*.c"],
