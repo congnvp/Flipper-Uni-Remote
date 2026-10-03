@@ -9,7 +9,7 @@ Last updated: 2026-10-03
 - Integration branch: `feat/v1-integration`.
 - Integration PR: #11.
 - Software release-candidate version: `0.9.0`.
-- Latest green pre-documentation validation: GitHub Actions run #201.
+- Final 0.9.0 software validation: GitHub Actions run #209 PASS (version, six-profile validation, release-channel uFBT build, artifact upload and lint).
 - Hardware verification remains separate from CI and must not be inferred from a green build.
 
 ## Implemented in 0.9.0
@@ -79,7 +79,7 @@ Current milestone: M5 / 0.9.0 software release candidate
 Working: M1-M4 implementation; package validation; uFBT build; lint
 Broken: no known compile/schema blocker
 Not implemented: no planned v1 feature remains
-Validation: run #201 PASS before final documentation/version packaging
+Validation: run #209 PASS on the complete 0.9.0 code/version/artifact set
 Hardware test: TBD
 Next task: final 0.9.0 CI, then physical regression matrix
 Rollback baseline: v0.4.3 / 9eb46426953bfa993831caf0c5a6626584f7e155
