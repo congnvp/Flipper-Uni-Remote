@@ -1,109 +1,111 @@
 # Stateful IR / AC Protocol Contract
 
-This document is the design gate for `STATE_IR`. It does not mean stateful IR is implemented.
+`STATE_IR` is implemented in the 0.9 integration candidate.
 
-## Problem
-
-Many air-conditioner remotes transmit a complete state frame. Treating TEMP+, FAN or SWING as unrelated captured button signals produces an incorrect abstraction and makes state display unreliable.
-
-The Universal Remote must model these devices as local state plus a protocol adapter.
-
-## Required flow
+## Runtime flow
 
 ```text
 UI element
-  -> Action Engine
-  -> state mutation
-  -> normalize / validate
-  -> protocol adapter
-  -> complete encoded frame
+  -> transport-aware binding (state:...)
+  -> State Engine
+  -> mutate LOCAL remembered state
+  -> adapter normalize / validate
+  -> vendor encoder / auxiliary command
   -> IR TX
 ```
 
-UI/controller code must never contain vendor protocol bytes.
+UI/controller code contains no LG or Daikin protocol bytes.
 
-## Generic state
+## Common local state
 
-The common layer should be able to represent fields such as:
+The shared state model currently covers:
 
-- power
-- mode
-- temperature
-- fan
-- swing_vertical
-- swing_horizontal
+- power;
+- mode;
+- temperature;
+- auto-mode bias;
+- fan;
+- vertical/horizontal swing;
+- powerful/eco/comfort;
+- auto-clean/purify/jet-dry;
+- display/unit assumptions;
+- on/off timers and sleep minutes.
 
-Adapters may expose extra vendor-specific fields, but the common state must not invent features unsupported by the real remote.
+Adapters normalize unsupported fields instead of inventing capabilities.
 
 ## Trust model
 
-Every displayed state value must carry an implicit trust level:
-
-- `LOCAL`: last value sent/remembered by this FAP.
-- `CONFIRMED`: verified by a real feedback channel.
-- `UNKNOWN`: not trustworthy.
-
-For one-way IR ACs, the normal state is `LOCAL`, not `CONFIRMED`.
-
-## Adapter responsibilities
-
-A protocol adapter should own:
-
-1. Supported ranges/enums.
-2. State normalization.
-3. Vendor-specific defaults.
-4. Full-frame encoding.
-5. Checksums/parity if required.
-6. Required repeated frames/timing.
-7. Mapping between portable local state and vendor frame fields.
-
-The generic Action Engine should only request state mutations such as:
-
-```text
-STATE_SET(power, on)
-STATE_STEP(temperature, +1)
-STATE_CYCLE(fan)
-STATE_CYCLE(swing_vertical)
-```
+For one-way IR appliances, displayed values are `LOCAL`: the last state remembered/sent by this FAP. They are not `CONFIRMED` device state. A future feedback transport may add confirmed state, but current AC adapters do not.
 
 ## Persistence
 
-`state.urs` is reserved for portable/local state data.
+Each STATE_IR package points to a local `state.urs`.
 
-Rules:
+Rules implemented by the engine:
 
-- Do not store Bluetooth bonds or unrelated secrets in it.
-- Validate every loaded value through the active adapter.
-- Clamp or replace invalid values with protocol-safe defaults.
-- Save after a successful local state mutation according to a write policy that avoids excessive SD writes.
-- Persist local state separately from transient UI focus/navigation state.
+- defaults are adapter-owned;
+- loaded values are normalized and validated before use;
+- invalid state falls back to safe adapter defaults;
+- state is marked dirty only after a successful mutation;
+- dirty state is flushed on unload, reload and app shutdown rather than after every button press;
+- transient page/focus state is stored in global settings, not `state.urs`;
+- Bluetooth bond material is stored elsewhere and never enters this file.
 
-## Adapter rollout
+## LG adapter
 
-Implement one adapter at a time.
+Adapter ID: `LG_AC`.
 
-### Adapter 1: LG AC
+Ported from the known-working `congnvp/LG_AC_ir_flipper-zero` project.
 
-Reference the existing LG AC project and preserve its known semantics, including:
+Implemented protocol behavior includes:
 
-- temperature range used by that remote;
-- fan levels;
-- vertical swing positions;
-- horizontal swing positions;
-- omitted functions that were intentionally unsupported in the original project.
+- 28-bit LG frame construction and nibble checksum;
+- 38 kHz raw transmission;
+- 18–30 °C;
+- Cool, Dry, Fan, Auto and Heat;
+- Auto plus fan levels 1–5;
+- eight vertical swing states;
+- nine horizontal swing states;
+- Power, Jet, Energy/Eco, Comfort, Display, Auto Clean, Purify, Jet Dry, C/F and Diagnosis;
+- timer-on, timer-off, sleep and clear-timers operations.
 
-Do not copy UI assumptions into the encoder.
+Full-state changes such as temperature/mode/fan regenerate the state frame. Swing and supported auxiliary features use the exact auxiliary command families from the reference implementation.
 
-### Adapter 2: Daikin ARC433A73
+## Daikin ARC433A73 adapter
 
-Add only after the LG framework is stable.
+Adapter ID: `DAIKIN_ARC433A73`.
 
-Use the same generic state/action interface. Vendor differences belong behind the adapter boundary.
+Ported from `congnvp/daikin_ac_ir_flipper_zero`.
 
-## Definition of done for an adapter
+Implemented protocol behavior includes:
 
-- Encoded frames match the protocol behavior derived from the known working project/data.
-- Generic UI and controller require no vendor-specific branches.
-- App state can close/reopen and restore to a valid local configuration.
-- Physical target device accepts POWER, temperature, mode/fan and supported swing operations.
-- Unsupported functions are omitted rather than guessed.
+- 35-byte Daikin state frame;
+- additive checksums for each section;
+- three-section raw frame encoding;
+- 584 raw timings at 38 kHz;
+- Cool, Dry and Fan;
+- 18–32 °C;
+- Auto plus fan levels 1–5;
+- vertical Swing;
+- Powerful;
+- on/off timers and clear-timers.
+
+Unsupported generic state fields are normalized away.
+
+## Binding examples
+
+```text
+state:power:toggle
+state:temp:+
+state:temp:-
+state:mode:+
+state:fan:-
+state:swing_v:toggle
+state:powerful:toggle
+```
+
+The on-device Map editor exposes only actions valid for the selected adapter.
+
+## Evidence boundary
+
+The encoders compile and link in the official release SDK and their package schemas pass CI validation. That is software evidence only. Physical acceptance by the actual LG/Daikin units remains a separate hardware gate in `TEST_MATRIX.md`.
