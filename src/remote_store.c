@@ -193,6 +193,20 @@ static bool safe_package_filename(const char* value) {
            strchr(value, '\n') == NULL && strchr(value, '\r') == NULL;
 }
 
+static bool safe_bluetooth_profile(const char* value) {
+    if(!value || !value[0]) return false;
+    for(size_t i = 0; value[i]; i++) {
+        const char ch = value[i];
+        const bool valid =
+            (ch >= 'a' && ch <= 'z') ||
+            (ch >= 'A' && ch <= 'Z') ||
+            (ch >= '0' && ch <= '9') ||
+            ch == '_' || ch == '-';
+        if(!valid) return false;
+    }
+    return true;
+}
+
 static bool parse_transport(const char* text, UniTransport* transport) {
     if(strcmp(text, "IR") == 0) {
         *transport = UniTransportInfrared;
@@ -377,7 +391,10 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
         if(!safe_package_filename(remote->state_file)) break;
 
         if(remote->transport == UniTransportStatefulIr && !remote->state_adapter[0]) break;
-        if(remote->transport == UniTransportBluetoothHid && !remote->bluetooth_profile[0]) break;
+        if(remote->transport == UniTransportBluetoothHid &&
+           !safe_bluetooth_profile(remote->bluetooth_profile)) {
+            break;
+        }
 
         ff_read_string(ff, "HardUpHold", remote->hard_bindings[UniHardUpHold], UNI_BINDING_MAX, false);
         ff_read_string(ff, "HardDownHold", remote->hard_bindings[UniHardDownHold], UNI_BINDING_MAX, false);
@@ -417,6 +434,12 @@ static bool load_remote(Storage* storage, const char* folder, UniRemote* remote)
             UNI_REMOTES_DIR "/%s/%s",
             folder,
             state_file_copy);
+
+        if(remote->transport == UniTransportInfrared &&
+           !storage_file_exists(storage, remote->signal_path)) {
+            break;
+        }
+
         ok = true;
     } while(false);
 
