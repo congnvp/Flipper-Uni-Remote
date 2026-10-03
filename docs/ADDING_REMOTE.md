@@ -33,7 +33,7 @@ Element3Up: sig:Vol_up
 Element3Down: sig:Vol_dn
 ```
 
-Named aliases/sequences use `act:<id>`.
+Named aliases/sequences use `act:<id>`. Sequence steps may themselves use `act:<id>` to compose nested macros; cycles are rejected.
 
 If a parsed protocol needs multiple initial frames, set `IrBurst`.
 
@@ -55,7 +55,7 @@ Favourite: false
 Folder: LIVING
 ```
 
-An empty Folder goes to UNCATEGORIZED. Favourite is independent of folder membership.
+An empty Folder goes to UNCATEGORIZED. Favourite is independent of folder membership. Remote Settings can cycle existing folders with Left/Right or press OK on Folder to enter a new folder name directly.
 
 ## Stateful AC
 
@@ -90,6 +90,8 @@ Bond keys are generated/stored in app-private data and must never be copied into
 ## On-device edits
 
 The Map picker is transport-aware, so IR remotes see signals/sequences while STATE_IR and BT remotes see only valid actions for their transport.
+
+Layout Tools can edit Label and Page in addition to geometry/icons/bindings. Ordinary IR remotes also expose `REMOTE -> MACROS` for sequence creation, nested steps, delays, rename and safe deletion.
 
 ## Validation
 
