@@ -426,18 +426,22 @@ static void draw_global(Canvas* canvas,const UniUiState* state) {
 static void draw_remote_settings(Canvas* canvas,const UniUiState* state) {
     const UniRemote* r=state->remote?state->remote:uni_remote_store_get(state->store,state->selected_remote);
     draw_menu_header(canvas,"REMOTE");
-    static const char* labels[]={"REPEAT","DEFAULT","LAYOUT","KEYMAP","BT ID","BACK"};
+    static const char* labels[]={"REPEAT","DEFAULT","LAYOUT","KEYMAP","DEVICE DATA","BACK"};
     const size_t count=6,start=scroll_start(state->menu_index,count);
     for(size_t row=0;row<5;row++) {
         const size_t i=start+row; if(i>=count) break;
+        const char* label=labels[i];
         const char* value="";
-        char bt[9]={0};
         if(i==0) value=r&&r->repeat_enabled?"ON":"OFF";
         else if(i==1) value="SET";
         else if(i==2) value="EDIT";
         else if(i==3) value="EDIT";
-        else if(i==4) { if(r) snprintf(bt,sizeof(bt),"%.8s",r->bluetooth_profile); value=bt; }
-        draw_menu_row(canvas,24+(int16_t)row*19,labels[i],value,i==state->menu_index);
+        else if(i==4 && r) {
+            if(r->transport==UniTransportInfrared) { label="IMPORT IR"; value="OPEN"; }
+            else if(r->transport==UniTransportBluetoothHid) { label="FORGET BT"; value="RESET"; }
+            else { label="RESET STATE"; value="RESET"; }
+        }
+        draw_menu_row(canvas,24+(int16_t)row*19,label,value,i==state->menu_index);
     }
 }
 
