@@ -116,6 +116,52 @@ Action0StepCount: 9
     )
     expect_fail("too_many_steps", BASE_REMOTE, too_many_steps)
 
+    nested_actions = """Filetype: Flipper Uni Remote Actions
+Version: 1
+ActionCount: 2
+Action0Id: inner
+Action0Type: sequence
+Action0StepCount: 1
+Action0Step0: Power
+Action0Delay0: 0
+Action1Id: outer
+Action1Type: sequence
+Action1StepCount: 2
+Action1Step0: act:inner
+Action1Delay0: 50
+Action1Step1: sig:Power
+Action1Delay1: 0
+"""
+    nested_remote = BASE_REMOTE.replace("sig:Power", "act:outer")
+    expect_pass("nested_sequence", nested_remote, nested_actions)
+
+    cyclic_actions = """Filetype: Flipper Uni Remote Actions
+Version: 1
+ActionCount: 2
+Action0Id: a
+Action0Type: sequence
+Action0StepCount: 1
+Action0Step0: act:b
+Action0Delay0: 0
+Action1Id: b
+Action1Type: sequence
+Action1StepCount: 1
+Action1Step0: act:a
+Action1Delay0: 0
+"""
+    expect_fail("sequence_cycle", nested_remote.replace("act:outer", "act:a"), cyclic_actions)
+
+    long_delay = """Filetype: Flipper Uni Remote Actions
+Version: 1
+ActionCount: 1
+Action0Id: slow
+Action0Type: sequence
+Action0StepCount: 1
+Action0Step0: Power
+Action0Delay0: 60001
+"""
+    expect_fail("excessive_delay", BASE_REMOTE.replace("sig:Power", "act:slow"), long_delay)
+
     bt_remote = BASE_REMOTE.replace("Transport: IR", "Transport: BT").replace(
         "BluetoothProfile:", "BluetoothProfile: bad profile!"
     ).replace("Element0Tap: sig:Power", "Element0Tap: bt:media:play_pause")
