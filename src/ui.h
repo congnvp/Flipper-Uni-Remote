@@ -44,6 +44,7 @@ typedef struct {
     const UniSettings* settings;
     const UniActionEngine* action_engine;
     size_t selected_remote;
+    size_t home_category;
     const UniRemote* remote;
     uint8_t remote_page;
 
