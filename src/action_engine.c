@@ -173,13 +173,23 @@ const UniNamedAction* uni_action_find(const UniActionCatalog* catalog, const cha
     return NULL;
 }
 
-bool uni_action_engine_execute(
+static int action_index(const UniActionCatalog* catalog, const UniNamedAction* action) {
+    if(!catalog || !action) return -1;
+    for(size_t i = 0; i < catalog->count; i++) {
+        if(&catalog->actions[i] == action) return (int)i;
+    }
+    return -1;
+}
+
+static bool execute_binding_internal(
     UniActionEngine* engine,
     const UniRemote* remote,
     const char* binding,
-    bool repeat) {
+    bool repeat,
+    uint32_t visiting,
+    uint8_t depth) {
     if(!engine || !remote || !binding || !binding[0]) return false;
-    if(remote->transport != UniTransportInfrared) return false;
+    if(depth > UNI_MAX_ACTIONS) return false;
 
     const char* signal_name = binding;
     if(strncmp(binding, "sig:", 4) == 0) {
@@ -188,26 +198,31 @@ bool uni_action_engine_execute(
         const UniNamedAction* action = uni_action_find(&engine->actions, binding + 4);
         if(!action) return false;
 
+        const int index = action_index(&engine->actions, action);
+        if(index < 0 || index >= 32) return false;
+        const uint32_t bit = 1UL << (uint32_t)index;
+        if(visiting & bit) return false;
+
         if(action->type == UniActionSignal) {
             signal_name = action->signal;
         } else {
             if(repeat) return false;
-            bool ok = true;
+            const uint32_t next_visiting = visiting | bit;
             for(size_t i = 0; i < action->step_count; i++) {
-                if(!uni_ir_transport_send(
-                       engine->ir,
-                       remote->signal_path,
+                if(!execute_binding_internal(
+                       engine,
+                       remote,
                        action->steps[i],
                        false,
-                       remote->ir_burst)) {
-                    ok = false;
-                    break;
+                       next_visiting,
+                       (uint8_t)(depth + 1))) {
+                    return false;
                 }
                 if(action->delays_ms[i] > 0 && i + 1 < action->step_count) {
                     furi_delay_ms(action->delays_ms[i]);
                 }
             }
-            return ok;
+            return true;
         }
     }
 
@@ -217,4 +232,14 @@ bool uni_action_engine_execute(
         signal_name,
         repeat,
         remote->ir_burst);
+}
+
+bool uni_action_engine_execute(
+    UniActionEngine* engine,
+    const UniRemote* remote,
+    const char* binding,
+    bool repeat) {
+    if(!engine || !remote || !binding || !binding[0]) return false;
+    if(remote->transport != UniTransportInfrared) return false;
+    return execute_binding_internal(engine, remote, binding, repeat, 0, 0);
 }
