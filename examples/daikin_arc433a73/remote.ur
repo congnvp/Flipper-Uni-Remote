@@ -5,6 +5,8 @@ Name: Daikin ARC433A73
 ShortName: DAI
 Transport: STATE_IR
 Order: 31
+Favourite: false
+Folder: AC
 RepeatEnabled: true
 PageCount: 2
 IrBurst: 1
