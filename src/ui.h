@@ -29,6 +29,10 @@ typedef enum {
     UniUiKeymap,
     UniUiTextEdit,
     UniUiPagePick,
+    UniUiActionList,
+    UniUiActionEdit,
+    UniUiActionStepKind,
+    UniUiActionStepPick,
 } UniUiPage;
 
 typedef enum {
@@ -44,6 +48,7 @@ typedef enum {
 typedef enum {
     UniTextLabel,
     UniTextFolder,
+    UniTextActionId,
 } UniTextTarget;
 
 typedef struct {
@@ -83,6 +88,10 @@ typedef struct {
     size_t text_cursor;
     size_t text_limit;
     char text_buffer[UNI_FOLDER_MAX];
+
+    size_t action_index;
+    size_t action_step;
+    bool action_step_append;
 } UniUiState;
 
 void uni_ui_draw(Canvas* canvas, const UniUiState* state);
