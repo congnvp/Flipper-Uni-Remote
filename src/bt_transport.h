@@ -15,3 +15,5 @@ void uni_bt_transport_deactivate(UniBtTransport* transport);
 bool uni_bt_transport_execute(UniBtTransport* transport, const char* binding, bool repeat);
 bool uni_bt_transport_is_active(const UniBtTransport* transport);
 bool uni_bt_transport_is_connected(const UniBtTransport* transport);
+
+bool uni_bt_transport_forget_profile(UniBtTransport* transport, const char* profile_id);
