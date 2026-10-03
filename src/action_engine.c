@@ -167,7 +167,16 @@ void uni_action_engine_init(
 
 bool uni_action_engine_load(UniActionEngine* engine, const UniRemote* remote) {
     if(!engine || !engine->storage || !remote) return false;
-    load_signal_names(engine->storage, remote->signal_path, &engine->signals);
+
+    memset(&engine->signals, 0, sizeof(engine->signals));
+    memset(&engine->actions, 0, sizeof(engine->actions));
+
+    if(remote->transport != UniTransportInfrared) return true;
+
+    if(remote->signal_path[0]) {
+        load_signal_names(engine->storage, remote->signal_path, &engine->signals);
+    }
+    if(!remote->action_file[0]) return true;
     return load_actions(engine->storage, remote->action_path, &engine->actions);
 }
 
