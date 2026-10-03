@@ -1,4 +1,4 @@
-# Install / test the 0.9 candidate
+# Install / test the 0.10 candidate
 
 ## From a GitHub Actions artifact
 
@@ -54,7 +54,9 @@ Bond data is stored under the app's private data area, separately per profile. I
 
 Leaving the BT remote restores the default Flipper Bluetooth profile.
 
-## Updating a profile
+## Editing and updating a profile
+
+The 0.10 candidate can edit layout position/type, binding, icon, label, page, folder and IR sequence macros directly on the Flipper.
 
 If `remote.ur`, `signals.ir` or `actions.ur` is edited externally, use:
 
@@ -68,7 +70,7 @@ CI-valid example packages can be checked locally with:
 python3 tools/check_profiles.py
 ```
 
-## 0.9 hardware checklist
+## 0.10 hardware checklist
 
 Before calling the project v1.0.0, test:
 
