@@ -288,7 +288,6 @@ static bool lg_execute(UniDeviceState* state, const char* operation, bool repeat
         if(state->power) {
             lg_send_code(LG_CMD_POWER_OFF);
             state->power = false;
-            state->powerful = false;
         } else {
             lg_send_full_state(state, true);
             state->power = true;
