@@ -122,6 +122,7 @@ static void system_escape(UniApp* app) {
 }
 
 static void open_layout_editor(UniApp* app) {
+    const uint8_t preferred_page = app->controller.page_index;
     if(!uni_remote_store_load_details(&app->store, app->ui.selected_remote)) return;
     app->ui.remote = selected_remote(app);
     if(!app->ui.remote || !app->ui.remote->elements_loaded) return;
@@ -130,8 +131,8 @@ static void open_layout_editor(UniApp* app) {
     app->controller.dpad_captured = false;
 
     /* Layout editing includes display-only elements such as status/screen. */
-    app->ui.layout_page = app->controller.page_index < app->ui.remote->page_count ?
-                              app->controller.page_index :
+    app->ui.layout_page = preferred_page < app->ui.remote->page_count ?
+                              preferred_page :
                               0;
     app->ui.layout_element = first_element_on_page(app->ui.remote, app->ui.layout_page);
     if(app->ui.layout_element >= app->ui.remote->element_count) {
