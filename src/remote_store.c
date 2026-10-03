@@ -29,11 +29,11 @@ static bool write_text_file(Storage* storage, const char* path, const char* text
     return ok;
 }
 
-static void ensure_default_package(Storage* storage) {
+static void ensure_default_package(Storage* storage, bool repair) {
     storage_common_mkdir(storage, UNI_REMOTES_DIR);
     storage_common_mkdir(storage, UNI_DEFAULT_DIR);
 
-    if(!storage_file_exists(storage, UNI_DEFAULT_REMOTE)) {
+    if(repair || !storage_file_exists(storage, UNI_DEFAULT_REMOTE)) {
         static const char remote_text[] =
             "Filetype: Flipper Uni Remote\n"
             "Version: 1\n"
@@ -86,7 +86,7 @@ static void ensure_default_package(Storage* storage) {
         write_text_file(storage, UNI_DEFAULT_REMOTE, remote_text);
     }
 
-    if(!storage_file_exists(storage, UNI_DEFAULT_SIGNALS)) {
+    if(repair || !storage_file_exists(storage, UNI_DEFAULT_SIGNALS)) {
         static const char signal_text[] =
             "Filetype: IR signals file\n"
             "Version: 1\n"
@@ -129,7 +129,7 @@ static void ensure_default_package(Storage* storage) {
         write_text_file(storage, UNI_DEFAULT_SIGNALS, signal_text);
     }
 
-    if(!storage_file_exists(storage, UNI_DEFAULT_ACTIONS)) {
+    if(repair || !storage_file_exists(storage, UNI_DEFAULT_ACTIONS)) {
         static const char action_text[] =
             "Filetype: Flipper Uni Remote Actions\n"
             "Version: 1\n"
@@ -646,7 +646,11 @@ bool uni_remote_store_init(UniRemoteStore* store, Storage* storage) {
     storage_common_mkdir(storage, UNI_REMOTES_DIR);
     scan_remotes(store);
     if(store->count == 0) {
-        ensure_default_package(storage);
+        /*
+         * If every package is malformed, repair the built-in fallback even
+         * when stale demo files already exist.
+         */
+        ensure_default_package(storage, true);
         scan_remotes(store);
     }
     return store->count > 0;
