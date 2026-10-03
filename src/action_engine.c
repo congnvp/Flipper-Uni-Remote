@@ -154,10 +154,15 @@ done:
     return ok;
 }
 
-void uni_action_engine_init(UniActionEngine* engine, Storage* storage, UniIrTransport* ir) {
+void uni_action_engine_init(
+    UniActionEngine* engine,
+    Storage* storage,
+    UniIrTransport* ir,
+    UniBtTransport* bt) {
     memset(engine, 0, sizeof(UniActionEngine));
     engine->storage = storage;
     engine->ir = ir;
+    engine->bt = bt;
 }
 
 bool uni_action_engine_load(UniActionEngine* engine, const UniRemote* remote) {
@@ -183,6 +188,9 @@ bool uni_action_engine_execute(
 
     if(remote->transport == UniTransportStatefulIr) {
         return uni_stateful_ir_execute(engine->storage, remote, binding, repeat);
+    }
+    if(remote->transport == UniTransportBluetoothHid) {
+        return uni_bt_transport_execute(engine->bt, binding, repeat);
     }
     if(remote->transport != UniTransportInfrared) return false;
 
