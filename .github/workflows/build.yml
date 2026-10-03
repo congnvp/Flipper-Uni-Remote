@@ -19,6 +19,9 @@ jobs:
       - name: Validate remote profiles
         run: python3 tools/check_profiles.py
 
+      - name: Test malformed profile validation
+        run: python3 tools/test_profile_validator.py
+
       - name: Build with official uFBT action
         id: build
         uses: flipperdevices/flipperzero-ufbt-action@v0.1
