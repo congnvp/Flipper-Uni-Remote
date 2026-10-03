@@ -1,10 +1,8 @@
 # Adding a remote
 
-v0.2 remotes are data packages, not C profiles.
+Remote definitions are data packages, not compiled UI profiles.
 
-## Fast path
-
-Create an example/package scaffold:
+## Scaffold an ordinary IR remote
 
 ```bash
 python3 tools/new_profile.py living_tv "Living TV" TV
@@ -15,58 +13,95 @@ This creates:
 ```text
 examples/living_tv/
 ├── remote.ur
-└── signals.ir
+├── signals.ir
+└── actions.ur
 ```
 
-Copy that directory to:
+Copy the directory to:
 
 ```text
 /ext/apps_data/flipper_uni_remote/remotes/living_tv/
 ```
 
-or use it as a template for a user-facing package.
+## Ordinary IR
 
-## Using IR captured by Flipper
-
-The FAP deliberately uses the standard Flipper `.ir` format. A file learned in the official Infrared app can therefore be copied into the remote package without converting address/command/raw timings to source code.
-
-Set:
+Use a standard Flipper `.ir` file and bind exact signal names:
 
 ```text
-SignalFile: my_remote.ir
+Transport: IR
+Element3Up: sig:Vol_up
+Element3Down: sig:Vol_dn
 ```
 
-and bind element actions to the exact `name:` entries inside that file.
+Named aliases/sequences use `act:<id>`.
 
-Example:
+If a parsed protocol needs multiple initial frames, set `IrBurst`.
+
+## Layout and pages
+
+Geometry uses a 3×6 logical grid:
 
 ```text
-Element3Type: vstep
-Element3Id: volume
+Element3Page: 0
 Element3Rect: 0 4 1 2
-Element3Label: VOL
-Element3Up: Vol_up
-Element3Down: Vol_dn
 ```
 
-## Layout
+Choose `PageCount` based on readability. There is no preferred fixed number of pages. Elements on separate pages can reuse cells.
 
-Use `Rect: X Y W H` on the 3×6 logical grid. Do not store pixel positions.
+## Library metadata
 
-## Bluetooth
+```text
+Favourite: false
+Folder: LIVING
+```
 
-You may assign a stable `BluetoothProfile` today. BLE HID and per-profile identity switching are not yet implemented, so a BT package is metadata-only in v0.2.
+An empty Folder goes to UNCATEGORIZED. Favourite is independent of folder membership.
 
-## Stateful appliances
+## Stateful AC
 
-Do not model a full-state air-conditioner protocol as fake independent button commands if the real remote sends an entire state frame. Use `Transport: STATE_IR` only as a placeholder until a matching state encoder/decoder driver exists.
+Use `STATE_IR` only when a matching adapter exists.
+
+```text
+Transport: STATE_IR
+StateAdapter: LG_AC
+StateFile: state.urs
+Element2Left: state:temp:-
+Element2Right: state:temp:+
+```
+
+Current adapters:
+
+- `LG_AC`
+- `DAIKIN_ARC433A73`
+
+Do not convert full-state AC behavior into fake per-button learned files.
+
+## Bluetooth HID
+
+```text
+Transport: BT
+BluetoothProfile: MyMedia
+Element2Tap: bt:media:play_pause
+Element3Up: bt:key:up
+```
+
+Bond keys are generated/stored in app-private data and must never be copied into the package.
+
+## On-device edits
+
+The Map picker is transport-aware, so IR remotes see signals/sequences while STATE_IR and BT remotes see only valid actions for their transport.
 
 ## Validation
 
+Before committing:
+
 ```bash
 python3 tools/check_version.py
+python3 tools/check_profiles.py
 ufbt
 ufbt lint
 ```
 
-For IR changes, test actual hardware and document code provenance.
+The profile validator catches invalid bindings, unknown actions/icons, path traversal, page/grid errors and collisions.
+
+Physical-device behavior still requires real hardware evidence.
