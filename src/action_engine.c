@@ -9,6 +9,8 @@
 #define UNI_ACTION_FILETYPE "Flipper Uni Remote Actions"
 #define UNI_ACTION_VERSION 1U
 
+static bool action_catalog_valid(const UniActionEngine* engine);
+
 static bool load_signal_names(Storage* storage, const char* path, UniSignalCatalog* catalog) {
     memset(catalog, 0, sizeof(UniSignalCatalog));
     File* file = storage_file_alloc(storage);
@@ -163,8 +165,11 @@ void uni_action_engine_init(UniActionEngine* engine, Storage* storage, UniIrTran
 
 bool uni_action_engine_load(UniActionEngine* engine, const UniRemote* remote) {
     if(!engine || !engine->storage || !remote) return false;
-    load_signal_names(engine->storage, remote->signal_path, &engine->signals);
-    return load_actions(engine->storage, remote->action_path, &engine->actions);
+    const bool signals_ok =
+        load_signal_names(engine->storage, remote->signal_path, &engine->signals);
+    if(remote->transport == UniTransportInfrared && !signals_ok) return false;
+    if(!load_actions(engine->storage, remote->action_path, &engine->actions)) return false;
+    return action_catalog_valid(engine);
 }
 
 const UniNamedAction* uni_action_find(const UniActionCatalog* catalog, const char* id) {
