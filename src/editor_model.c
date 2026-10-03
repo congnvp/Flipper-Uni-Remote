@@ -1,4 +1,5 @@
 #include "editor_model.h"
+#include <string.h>
 
 size_t uni_editor_binding_count(const UniElement* e) {
     if(!e) return 0;
