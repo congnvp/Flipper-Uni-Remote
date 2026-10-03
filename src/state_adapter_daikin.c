@@ -226,6 +226,7 @@ static void daikin_normalize(UniDeviceState* state) {
     if(state->temp_c > 32U) state->temp_c = 32U;
     if(state->fan > 5U) state->fan = 0;
     if(state->mode == UniAcModeDry) state->fan = 0;
+    if(!state->power) state->powerful = false;
     state->swing_v = state->swing_v ? 1U : 0U;
     state->swing_h = 0;
     state->eco = false;
