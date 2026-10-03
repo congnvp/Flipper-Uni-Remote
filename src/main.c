@@ -861,6 +861,10 @@ static void return_after_mapping(UniApp* app) {
 }
 
 static void handle_map_kind(UniApp* app, const InputEvent* event, UniKey key) {
+    const UniRemote* remote = selected_remote(app);
+    const bool ir = !remote || remote->transport == UniTransportInfrared;
+    const size_t option_count = ir ? 4 : 3;
+
     if(key == UniKeyBack && event->type == InputTypeShort) {
         app->ui.page = app->ui.map_target == UniMapHardKey ? UniUiKeymap : UniUiMapField;
         app->ui.menu_index = 0;
@@ -868,32 +872,49 @@ static void handle_map_kind(UniApp* app, const InputEvent* event, UniKey key) {
     }
     if(event->type != InputTypeShort) return;
     if(key == UniKeyUp || key == UniKeyDown) {
-        menu_move(&app->ui, 4, key);
+        menu_move(&app->ui, option_count, key);
         return;
     }
     if(key != UniKeyOk) return;
 
-    if(app->ui.menu_index == 0) {
-        app->ui.picker_kind = UniPickSignal;
-        app->ui.page = UniUiMapPick;
-        app->ui.menu_index = 0;
-    } else if(app->ui.menu_index == 1) {
-        app->ui.picker_kind = UniPickSequence;
-        app->ui.page = UniUiMapPick;
-        app->ui.menu_index = 0;
-    } else if(app->ui.menu_index == 2) {
-        if(set_current_binding(app, "")) return_after_mapping(app);
+    if(ir) {
+        if(app->ui.menu_index == 0) {
+            app->ui.picker_kind = UniPickSignal;
+            app->ui.page = UniUiMapPick;
+            app->ui.menu_index = 0;
+        } else if(app->ui.menu_index == 1) {
+            app->ui.picker_kind = UniPickSequence;
+            app->ui.page = UniUiMapPick;
+            app->ui.menu_index = 0;
+        } else if(app->ui.menu_index == 2) {
+            if(set_current_binding(app, "")) return_after_mapping(app);
+        } else {
+            app->ui.page = app->ui.map_target == UniMapHardKey ? UniUiKeymap : UniUiMapField;
+            app->ui.menu_index = 0;
+        }
     } else {
-        app->ui.page = app->ui.map_target == UniMapHardKey ? UniUiKeymap : UniUiMapField;
-        app->ui.menu_index = 0;
+        if(app->ui.menu_index == 0) {
+            app->ui.picker_kind = UniPickSignal;
+            app->ui.page = UniUiMapPick;
+            app->ui.menu_index = 0;
+        } else if(app->ui.menu_index == 1) {
+            if(set_current_binding(app, "")) return_after_mapping(app);
+        } else {
+            app->ui.page = app->ui.map_target == UniMapHardKey ? UniUiKeymap : UniUiMapField;
+            app->ui.menu_index = 0;
+        }
     }
 }
 
 static void handle_map_pick(UniApp* app, const InputEvent* event, UniKey key) {
+    const UniRemote* remote = selected_remote(app);
+    const bool ir = !remote || remote->transport == UniTransportInfrared;
     const size_t count =
-        app->ui.picker_kind == UniPickSignal ?
-            app->actions.signals.count :
-            sequence_count(&app->actions.actions);
+        ir ?
+            (app->ui.picker_kind == UniPickSignal ?
+                 app->actions.signals.count :
+                 sequence_count(&app->actions.actions)) :
+            uni_editor_transport_action_count(remote);
 
     if(key == UniKeyBack && event->type == InputTypeShort) {
         app->ui.page = UniUiMapKind;
@@ -908,7 +929,13 @@ static void handle_map_pick(UniApp* app, const InputEvent* event, UniKey key) {
     if(key != UniKeyOk) return;
 
     char binding[UNI_BINDING_MAX] = {0};
-    if(app->ui.picker_kind == UniPickSignal) {
+    if(!ir) {
+        snprintf(
+            binding,
+            sizeof(binding),
+            "%s",
+            uni_editor_transport_action_binding(remote, app->ui.menu_index));
+    } else if(app->ui.picker_kind == UniPickSignal) {
         snprintf(
             binding,
             sizeof(binding),
@@ -921,7 +948,7 @@ static void handle_map_pick(UniApp* app, const InputEvent* event, UniKey key) {
         snprintf(binding, sizeof(binding), "act:%s", action->id);
     }
 
-    if(set_current_binding(app, binding)) return_after_mapping(app);
+    if(binding[0] && set_current_binding(app, binding)) return_after_mapping(app);
 }
 
 static void handle_icon_field(UniApp* app, const InputEvent* event, UniKey key) {
@@ -987,7 +1014,7 @@ static void handle_keymap(UniApp* app, const InputEvent* event, UniKey key) {
     const size_t count = UniHardCount + 1;
     if(key == UniKeyBack && event->type == InputTypeShort) {
         app->ui.page = UniUiRemoteSettings;
-        app->ui.menu_index = 3;
+        app->ui.menu_index = 5;
         return;
     }
     if(event->type != InputTypeShort) return;
@@ -999,7 +1026,7 @@ static void handle_keymap(UniApp* app, const InputEvent* event, UniKey key) {
 
     if(app->ui.menu_index >= UniHardCount) {
         app->ui.page = UniUiRemoteSettings;
-        app->ui.menu_index = 3;
+        app->ui.menu_index = 5;
         return;
     }
 
